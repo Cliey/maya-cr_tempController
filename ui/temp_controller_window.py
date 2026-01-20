@@ -398,7 +398,7 @@ class TempControllerWindowMayaUI:
         """
         LOGGER.info("REBUILD TRREE UNDO/REDO")
 
-        new_controller_tree = self.build_controller_tree()
+        new_controller_tree = utils_hierarchy.build_controller_tree_from_scene()
 
         # LOGGER.info(f"self.current_controller_tree = {self.current_controller_tree}")
         LOGGER.info(f"new_controller_tree = {new_controller_tree}")

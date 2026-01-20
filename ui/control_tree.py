@@ -780,9 +780,26 @@ class ControlTreeMayaUI:
         data_node = utils_nodes.retrieve_data_node(node_name)
 
         cmds.delete(node_name, data_node)
-        self.controller_map.pop(node_name)
+        # Remove node and all its child
+        self._remove_node_tree_from_map(node)
+
+        # Remove parent (Base controller) from controller_map AND root_nodes list
+        self.controller_map.pop(node_parent_name)
         self.root_nodes.remove(node_parent_name)
         cmds.treeView(self.tree, e=True, removeItem=node_parent_name)
+
+    def _remove_node_tree_from_map(self, node: ctrl_node.ControllerNode):
+        """
+        Recursively remove node and all children from controller_map
+
+        :param node: Node we want to delete from the controller_map
+        :type node: ctrl_node.ControllerNode
+        """
+
+        for child in node.children:
+            self._remove_node_tree_from_map(child)
+
+        self.controller_map.pop(node.name)
 
     def __updateTree(self, parent, node):
         cmds.treeView(self.tree, e=True, addItem=(node, parent))
