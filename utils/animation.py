@@ -128,7 +128,7 @@ def lock_transform_attribute(node: str):
 
 
 def store_display_color_rgb(node: str, rgb_color: list[float]):
-    # TODO Movei n another utils?
+    # TODO Movei n another utils? (nodes)
     if not cmds.attributeQuery(constants.ATTRIBUTE_DISPLAY_COLOR, node=node, exists=True):
         cmds.addAttr(node, longName=constants.ATTRIBUTE_DISPLAY_COLOR,
                      attributeType='float3')

@@ -1,16 +1,12 @@
 import maya.api.OpenMaya as om
 import maya.cmds as cmds
-import cr_tempController.core.controller_context as controller_context
-import cr_tempController.core.controller_mode as controller_mode
+import cr_tempController.core.controller_factory as controller_factory
 import cr_tempController.core.controller_node as ctrl_node
 import cr_tempController.core.pivot_tools as pivot_tools
 import cr_tempController.constants as constants
-import cr_tempController.utils.naming as utils_naming
 import cr_tempController.utils.animation as utils_animation
 import cr_tempController.utils.nodes as utils_nodes
-import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.context as utils_context
-import cr_tempController.utils.logging as utils_logging
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -230,9 +226,6 @@ class ControlTreeMayaUI:
             lambda: _force_tree_label()
         )
 
-    def controller_ratio(self, depth):
-        return 1 * (0.9 ** depth)
-
     def __on_add_child(self, node, _):
         """
         Add a child to a temporary controller
@@ -256,106 +249,24 @@ class ControlTreeMayaUI:
                 LOGGER.exception("Error when adding a child.")
                 raise
 
-    def create_child_controller(self, parent_node):
-        parent_name = parent_node.name
-        world_translation = cmds.xform(
-            parent_name,
-            query=True,
-            translation=True,
-            worldSpace=True)
+    def create_child_controller(self, parent_node: ctrl_node.ControllerNode):
+        """
+        Create a child controller from the parent_node
 
-        LOGGER.warning(f"---> world_translation = {world_translation}")
+        :param parent_node: Description
+        :type parent_node: ctrl_node.ControllerNode
+        """
+        # Factory creates the Maya node
+        child_controller = controller_factory.create_child_controller(
+            parent_node=parent_node)
 
-        context = self.__build_context(parent_node=parent_node)
+        # Rewire constraints
+        utils_nodes.reconnect_constraints(child_controller)
 
-        child_controller = self.__create_new_controller(
-            name=f"{parent_name}_Child#",
-            parent_group=parent_name,
-            translation=world_translation,
-            context=context)
-
-        self._reconnect_constraints(child_controller)
+        # Register in tree state
         self._register_child_node(parent_node, child_controller)
 
-        self.__updateTree(parent_name, child_controller)
-
-    def __build_context(self, parent_node):
-        parent_color = cmds.getAttr(f"{parent_node.name}.{constants.ATTRIBUTE_DISPLAY_COLOR}")[0] if cmds.attributeQuery(
-            constants.ATTRIBUTE_DISPLAY_COLOR, node=parent_node.name, exists=True) else [1, 0, 1]
-
-        default_shape = controller_shapes.ControllerShape.ROUNDED_SQUARE  # pick a safe enum
-
-        if cmds.control(constants.SHAPE_MENU_CREATION_NAME, exists=True):
-            controller_shape_label = cmds.optionMenu(
-                constants.SHAPE_MENU_CREATION_NAME, q=True, value=True
-            )
-            shape = controller_shapes.SHAPE_LABEL_TO_ENUM.get(
-                controller_shape_label, default_shape
-            )
-        else:
-            shape = default_shape
-
-        controller_shape_label = cmds.optionMenu(
-            constants.SHAPE_MENU_CREATION_NAME, q=True, value=True)
-
-        return controller_context.TempControllerCreationContext(
-            size_ratio=self.controller_ratio(parent_node.depth),
-            rgb_color=parent_color,
-            shape=shape
-        )
-
-    def __create_new_controller(self, name: str, parent_group: str, translation: list[float], context: controller_context.TempControllerCreationContext) -> str:
-        """
-        Create a new controller with the selected shape under parent controller
-
-        :param name: Name of the new controller
-        :type name: str
-        :param parent_group: Parent of the new controller
-        :type parent_group: str
-        :param translation: Position where the new controller will be created
-        :type translation: list[float]
-        :param context: Data context for the new controller
-        :type context: controller_context.TempControllerCreationContext
-        :return: Name of the new controller
-        :rtype: str
-        """
-
-        controller = controller_shapes.create_controller(
-            name=name, shape=context.shape, ratio=context.size_ratio)
-        cmds.color(controller, rgbColor=context.rgb_color)
-
-        # Store color for later retrieval
-        utils_animation.store_display_color_rgb(controller, context.rgb_color)
-
-        cmds.parent(controller, parent_group)
-        cmds.rotate(0, 0, 0, controller)
-        # TODO: can adapt to boundaries
-        cmds.xform(controller, t=translation, ws=True)
-        return controller
-
-    def _reconnect_constraints(self, child_controller: str) -> None:
-        """
-        Rewire parent constraints so the new controller drives the source.
-        """
-        data_node = utils_nodes.retrieve_data_node(child_controller)
-        source_controller = utils_nodes.get_source_controller(data_node)
-
-        parent_group = cmds.listRelatives(
-            child_controller, parent=True, fullPath=True
-        )[0]
-
-        cmds.parentConstraint(
-            child_controller,
-            source_controller,
-            maintainOffset=True
-        )
-
-        cmds.parentConstraint(
-            parent_group,
-            source_controller,
-            edit=True,
-            remove=True
-        )
+        self.__updateTree(parent_node.name, child_controller)
 
     def _register_child_node(self, parent_node: ctrl_node.ControllerNode, child_controller: str):
         """
@@ -369,138 +280,24 @@ class ControlTreeMayaUI:
         parent_node.add_child(child_node)
         self.controller_map[child_node.name] = child_node
 
-    def create_new_temporary_controller_from_base_controller(self, base_controller: str, context: controller_context.TempControllerCreationContext):
+    def register_controller_in_tree(self, base_controller: str, temp_controller: str):
         """
-        Create a new temporary controller for a controller selected by the user.
-        Only called when pressing "New Controller button"
+        Finalize temp controller creation: run factory operations + update UI state.
 
-        :param base_controller: Controller we want to add a temporary controller
-        :type base_controller: str
-        :param mode: Mode to create the controller
-        :type mode: controller_mode.ControllerCreationMode
-        :param rgb_color: RGB Color in viewport of the new controller
-        :type rgb_color: list[float]
+        :param base_controller: Name of the original controller
+        :param temp_controller: Name of the newly created temp controller
+        :param context: Creation context
         """
-
-        """ TODO
-        - Add a driver to say if we want to activate the temp controller or not. Connected ot the parent constraint.
-        - Driver will be the same for all child. Add in UI?"""
-        LOGGER.info(f"Create controller with mode = {context.mode}")
-        with utils_context.UndoChunk():
-            try:
-                temp_controller = self.__create_temp_controller(
-                    base_controller=base_controller,
-                    context=context
-                )
-
-                self._finalize_temp_controller(
-                    base_controller=base_controller,
-                    temp_controller=temp_controller,
-                    context=context
-                )
-
-                cmds.select(temp_controller)
-
-            except Exception:
-                LOGGER.exception(
-                    "Error during creation of a new Temp Controller.")
-                raise
-
-    def __create_temp_controller(self, base_controller: str, context: controller_context.TempControllerCreationContext) -> tuple[list[float], str]:
-
-        world_translation = cmds.xform(
-            base_controller,
-            q=True,
-            t=True,
-            ws=True
-        )
-
-        temp_controller = self.__create_new_controller(
-            name=f"{base_controller}{constants.SUFFIXE_TEMP_CONTROL_CTRLLER}",
-            parent_group=constants.TEMP_PIVOT_GROUP,
-            translation=world_translation,
-            context=context
-        )
-
-        return temp_controller
-
-    def _finalize_temp_controller(self, base_controller: str, temp_controller: str, context: controller_context.TempControllerCreationContext):
-        """
-        Apply all post-creation operations consistently.
-        """
-
-        # Create Data Node and move New Controller under it
-        self.__create_data_node(
-            base_controller_name=base_controller,
-            temp_controller_name=temp_controller,
-            context=context
-        )
-
-        # Match transform once
-        cmds.delete(cmds.parentConstraint(
-            base_controller,
-            temp_controller,
-            mo=False
-        ))
-
-        # Copy animation & Bake on all Keys
-        utils_animation.copy_anim_from_parent_to_target_smart(
-            parent=base_controller,
-            target=temp_controller
-        )
-
-        # Create the Controller Tree
+        # 2. Register in tree data model
         self.__create_controller_tree(
             base_controller_name=base_controller,
             temp_controller_name=temp_controller
         )
 
-        # Parenting Based to New Controller
-        cmds.parentConstraint(
-            temp_controller,
-            base_controller
-        )
-
-        # Update tree with Parent Controller & the new
+        # 3. Update tree UI
         self.__updateTree('', base_controller)
         self.__updateTree(base_controller, temp_controller)
         cmds.select(temp_controller)
-
-    def __create_data_node(self, base_controller_name: str, temp_controller_name: str, context: controller_context.TempControllerCreationContext):
-        data_node = cmds.group(em=True,
-                               name=utils_naming.build_temp_control_data_name(
-                                   base_controller_name),
-                               parent=constants.TEMP_PIVOT_GROUP)
-
-        cmds.addAttr(data_node, attributeType="message",
-                     longName=constants.DATA_SOURCE_NODE)
-        cmds.connectAttr(f'{base_controller_name}.message',
-                         f'{data_node}.{constants.DATA_SOURCE_NODE}')
-
-        translation = (0, 0, 0)  # Worldspace translation
-
-        match context.mode:
-            case controller_mode.ControllerCreationMode.WORLD_SPACE:
-                translation = (0, 0, 0)
-
-            case controller_mode.ControllerCreationMode.OBJECT_SPACE:
-                world_pos = om.MVector(cmds.xform(
-                    base_controller_name, q=True, t=True, ws=True))
-
-                local_pos = om.MVector(cmds.xform(
-                    base_controller_name, q=True, t=True))
-
-                translation = world_pos - local_pos
-
-            case _:
-                raise NotImplementedError(
-                    f"Controller mode not implemented: {context.mode}")
-
-        cmds.xform(data_node, t=translation, ws=True)
-        utils_animation.lock_transform_attribute(data_node)
-
-        cmds.parent(temp_controller_name, data_node)
-        return data_node
 
     def __create_controller_tree(self, base_controller_name: str, temp_controller_name: str,):
         base_controller_node = ctrl_node.ControllerNode(
@@ -802,6 +599,12 @@ class ControlTreeMayaUI:
         self.controller_map.pop(node.name)
 
     def __updateTree(self, parent, node):
+        """
+        Update the tree view UI to add *node* to *parent*
+
+        :param parent: Parent to add the node under
+        :param node: Node to add
+        """
         cmds.treeView(self.tree, e=True, addItem=(node, parent))
         if not parent:
             cmds.treeView(self.tree,

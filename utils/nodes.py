@@ -133,3 +133,28 @@ def freeze_children(children: list[str]):
             type="matrix"
         )
         cmds.setAttr(f"{child}.translate", 0, 0, 0)
+
+
+def reconnect_constraints(child_controller: str) -> None:
+    """
+    Rewire parent constraints so the new controller drives the source.
+    """
+    data_node = retrieve_data_node(child_controller)
+    source_controller = get_source_controller(data_node)
+
+    parent_group = cmds.listRelatives(
+        child_controller, parent=True, fullPath=True
+    )[0]
+
+    cmds.parentConstraint(
+        child_controller,
+        source_controller,
+        maintainOffset=True
+    )
+
+    cmds.parentConstraint(
+        parent_group,
+        source_controller,
+        edit=True,
+        remove=True
+    )

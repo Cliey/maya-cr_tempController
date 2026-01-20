@@ -2,6 +2,7 @@ import maya.cmds as cmds
 import cr_tempController.constants as constants
 from . import control_tree
 import cr_tempController.core.controller_context as controller_context
+import cr_tempController.core.controller_factory as controller_factory
 import cr_tempController.core.controller_mode as controller_mode
 import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.hierarchy as utils_hierarchy
@@ -583,9 +584,15 @@ class TempControllerWindowMayaUI:
             shape=controller_shapes.SHAPE_LABEL_TO_ENUM[controller_shape_label]
         )
 
-        self.tree_view_control.create_new_temporary_controller_from_base_controller(
+        temp_controller = controller_factory.create_new_temporary_controller_from_base_controller(
             base_controller=base_controller,
             context=context
+        )
+
+        # Update Tree view
+        self.tree_view_control.register_controller_in_tree(
+            base_controller=base_controller,
+            temp_controller=temp_controller
         )
 
 
