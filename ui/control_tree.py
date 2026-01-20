@@ -722,30 +722,24 @@ class ControlTreeMayaUI:
 
         self._remove_controller_from_model(node)
 
-    def _bake_with_constraint(self, driver: str, driven: str, time_range: set[int], maintain_offset: bool = False):
-        constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
-        cmds.bakeResults(driven, time=time_range, **
-                         constants.BAKE_EVERY_FRAME_OPTS)
-        cmds.filterCurve(driven)
-        cmds.delete(constraint, constraints=True)
-
     def _preserve_world_transform(self, node):
         return cmds.xform(node, q=True, ws=True, matrix=True)
 
     def _transfer_animation_child_to_parent(self, child: ctrl_node.ControllerNode, time_range):
         parent_name = child.parent.name
         tmp_locator = cmds.spaceLocator(name=f"{parent_name}_TMP_LOC")[0]
-
         try:
-            self._bake_with_constraint(driver=child.name,
-                                       driven=tmp_locator,
-                                       time_range=time_range,
-                                       maintain_offset=False)
+            utils_animation.bake_with_constraint(driver=child.name,
+                                                 driven=tmp_locator,
+                                                 time_range=time_range,
+                                                 maintain_offset=False,
+                                                 smart=False)
             cmds.delete(child.name)
-            self._bake_with_constraint(driver=tmp_locator,
-                                       driven=parent_name,
-                                       time_range=time_range,
-                                       maintain_offset=False)
+            utils_animation.bake_with_constraint(driver=tmp_locator,
+                                                 driven=parent_name,
+                                                 time_range=time_range,
+                                                 maintain_offset=False,
+                                                 smart=False)
 
         finally:
             cmds.delete(tmp_locator)

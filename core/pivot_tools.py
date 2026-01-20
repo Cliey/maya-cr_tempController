@@ -250,8 +250,7 @@ class PivotTool:
         utils_animation.copy_anim_from_parent_to_target(
             parent=self.controller,
             target=duplicate_controller,
-            maintain_offset=True,
-            smart_bake=False
+            maintain_offset=True
         )
 
     def __replace_controller_in_hierarchy(self, duplicate_controller: str):

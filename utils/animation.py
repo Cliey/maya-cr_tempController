@@ -1,8 +1,43 @@
+from dataclasses import dataclass
 import maya.cmds as cmds
 import logging
 import cr_tempController.constants as constants
 
 LOGGER = logging.getLogger(__name__)
+
+
+def bake_with_constraint(driver, driven, time_range, maintain_offset: bool = False, smart: bool = False):
+    if smart:
+        bake_with_constraint_smart(driver, driven, time_range, maintain_offset)
+    else:
+        bake_with_constraint_all_frames(
+            driver, driven, time_range, maintain_offset)
+
+
+def bake_with_constraint_smart(driver, driven, time_range, maintain_offset: bool = False):
+    """Unified baking: constraint + bake + optional filter + cleanup"""
+    constraint = cmds.parentConstraint(
+        driver, driven, maintainOffset=maintain_offset)
+    cmds.bakeResults(driven,
+                     time=time_range,
+                     simulation=True,
+                     smart=True)
+    cmds.filterCurve(driven)
+    cmds.delete(constraint, constraints=True)
+
+
+def bake_with_constraint_all_frames(driver, driven, time_range, maintain_offset: bool = False):
+    """Unified baking: constraint + bake + optional filter + cleanup"""
+    constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
+    cmds.bakeResults(driven,
+                     time=time_range,
+                     simulation=True,
+                     sampleBy=1.0,
+                     sparseAnimCurveBake=True,
+                     preserveOutsideKeys=True)
+
+    cmds.filterCurve(driven)
+    cmds.delete(constraint, constraints=True)
 
 
 def get_start_end_time_of_animation():
@@ -28,7 +63,7 @@ def _get_parent_first_last_keyframe(parent):
     return int(first_key), int(last_key)
 
 
-def copy_anim_from_parent_to_target(parent: str, target: str, maintain_offset: bool = False, smart_bake: bool = True):
+def copy_anim_from_parent_to_target(parent: str, target: str, maintain_offset: bool = False):
     """
     Copy animation of the **parent controller** to the **target**
     Parent to Target
@@ -45,11 +80,12 @@ def copy_anim_from_parent_to_target(parent: str, target: str, maintain_offset: b
         return
     first_key, last_key = _get_parent_first_last_keyframe(parent)
     LOGGER.debug(f"First_key = {first_key}; last_key = {last_key}")
-    parent_constraint = cmds.parentConstraint(
-        parent, target, maintainOffset=maintain_offset)
-    cmds.bakeResults(target, time=(first_key, last_key),
-                     simulation=True, sampleBy=1, sparseAnimCurveBake=False)
-    cmds.delete(parent_constraint, constraints=True)
+
+    bake_with_constraint(driver=parent,
+                         driven=target,
+                         time_range=(first_key, last_key),
+                         maintain_offset=maintain_offset,
+                         smart=False)
 
 
 def copy_anim_from_parent_to_target_smart(parent: str, target: str, maintain_offset: bool = False):
@@ -69,11 +105,15 @@ def copy_anim_from_parent_to_target_smart(parent: str, target: str, maintain_off
         return
     first_key, last_key = _get_parent_first_last_keyframe(parent)
     LOGGER.debug(f"First_key = {first_key}; last_key = {last_key}")
-    parent_constraint = cmds.parentConstraint(
-        parent, target, maintainOffset=maintain_offset)
-    cmds.bakeResults(target, time=(first_key, last_key),
-                     simulation=True, smart=True)
-    cmds.delete(parent_constraint, constraints=True)
+
+    LOGGER.info(
+        f"copy_anim_from_parent_to_target_smart for {parent} to {target}")
+
+    bake_with_constraint(driver=parent,
+                         driven=target,
+                         time_range=(first_key, last_key),
+                         maintain_offset=maintain_offset,
+                         smart=True)
 
 
 def lock_transform_attribute(node: str):
