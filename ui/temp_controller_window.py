@@ -6,7 +6,6 @@ import cr_tempController.core.controller_mode as controller_mode
 import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.hierarchy as utils_hierarchy
 import cr_tempController.utils.naming as utils_naming
-import cr_tempController.utils.nodes as utils_nodes
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -16,7 +15,7 @@ class TempControllerWindowMayaUI:
     def __init__(self):
         self.window = constants.TOOL_WINDOW_NAME
 
-        self.current_controller_tree = self.build_controller_tree()
+        self.current_controller_tree = utils_hierarchy.build_controller_tree_from_scene()
 
         self.tree_view_control = control_tree.ControlTreeMayaUI(
             on_select_update_ui_callback=self._update_ui_from_selection,
@@ -30,17 +29,6 @@ class TempControllerWindowMayaUI:
         self.color_properties = None
         self.shape_menu_creation = constants.SHAPE_MENU_CREATION_NAME
         self.shape_menu_properties = constants.SHAPE_MENU_PROPERTIES_NAME
-
-    def build_controller_tree(self) -> dict:
-        controller_tree = {}
-        temp_controller_data_list = cmds.listRelatives(
-            constants.TEMP_PIVOT_GROUP, type="transform") or []
-        for temp_controller_data in temp_controller_data_list:
-            source_controller_name = utils_nodes.get_source_controller(
-                temp_controller_data)
-            controller_tree[source_controller_name] = utils_hierarchy.get_transform_children_recursive(
-                temp_controller_data)
-        return controller_tree
 
     def _update_ui_from_selection(self, selected_object: str | None):
         """
@@ -567,7 +555,7 @@ class TempControllerWindowMayaUI:
         base_controller = selection_list[0]
 
         # Check hierarchy
-        root = self.__get_tempcontrol_root(base_controller)
+        root = utils_hierarchy.get_tempcontrol_root(base_controller)
         if root:
             cmds.warning(
                 "This object is already a Temporary Controller; cannot create a new controller here. You can only add a child.")
@@ -599,32 +587,6 @@ class TempControllerWindowMayaUI:
             base_controller=base_controller,
             context=context
         )
-
-    def __get_tempcontrol_root(self, node):
-        """
-        From any node, climb the hierarchy until we find a '*_TempControl_Data' (constants.SUFFIXE_TEMP_CONTROL_DATA) group.
-        Return the name or None.
-        """
-        while node:
-            if node.endswith(constants.SUFFIXE_TEMP_CONTROL_DATA):
-                return node
-            parents = cmds.listRelatives(node, parent=True)
-            node = parents[0] if parents else None
-
-        return None
-
-    def __is_under_tempcontrol(self, node):
-        """Returns True if the node is inside any '*_TempControl_Data' (constants.SUFFIXE_TEMP_CONTROL_DATA) hierarchy."""
-        return self.__get_tempcontrol_root(node) is not None
-
-    def __controller_child_exists(self, root):
-        """
-        If a TempControl_Data root is given, check if it already contains controllers.
-        Here we consider ANY children to be controllers; adjust the logic if needed.
-        """
-        children = cmds.listRelatives(
-            root, children=True, fullPath=False) or []
-        return len(children) > 0
 
 
 class ColorSelector:
