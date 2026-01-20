@@ -40,8 +40,10 @@ class TempControllerWindowMayaUI:
             return
 
         cmds.optionMenu(self.shape_menu_creation, edit=True, enable=True)
-        is_controller = selected_object in self.tree_view_control.controller_map
-        is_root_node = selected_object in self.tree_view_control.root_nodes
+        is_controller = self.tree_view_control.node_is_temporary_controller(
+            selected_object)
+        is_root_node = self.tree_view_control.node_is_base_controller(
+            selected_object)
         in_tree = is_controller or is_root_node
 
         # Enable create button ONLY if object is NOT in tree
