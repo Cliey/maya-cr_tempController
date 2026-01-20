@@ -107,7 +107,7 @@ def freeze_translate_parent_space(node: str, pivot_locator: str):
     )
 
 
-def freeze_children(self, children: list[str]):
+def freeze_children(children: list[str]):
     """
     Freeze Translate transform of node in children list
 
