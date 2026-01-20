@@ -548,7 +548,7 @@ class TempControllerWindowMayaUI:
         # Check if selected object already has a child
         selection_list = cmds.ls(selection=True, tail=1)
         if not selection_list:
-            cmds.warning(
+            LOGGER.warning(
                 "Select an object to create the temporary controller.")
             return
 
@@ -557,7 +557,7 @@ class TempControllerWindowMayaUI:
         # Check hierarchy
         root = utils_hierarchy.get_tempcontrol_root(base_controller)
         if root:
-            cmds.warning(
+            LOGGER.warning(
                 "This object is already a Temporary Controller; cannot create a new controller here. You can only add a child.")
             return
 
@@ -565,7 +565,7 @@ class TempControllerWindowMayaUI:
             base_controller)
 
         if cmds.objExists(temp_data_name):
-            cmds.warning(
+            LOGGER.warning(
                 "This base object already has a temporary controller. It has been selected. You should create a child from this controller.")
             cmds.select(temp_data_name)
             return

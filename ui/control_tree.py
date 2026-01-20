@@ -192,7 +192,7 @@ class ControlTreeMayaUI:
         try:
             controller_node = self.controller_map.get(old_name)
             if not controller_node:
-                cmds.warning(
+                LOGGER.warning(
                     f"Node {old_name} not found in controller_map. Aborting rename.")
                 return old_name
 
@@ -209,7 +209,6 @@ class ControlTreeMayaUI:
 
             return actual_new_name
         except Exception as e:
-            cmds.warning(f"Rename failed: {e}")
             LOGGER.warning(f"Rename failed: {e}")
             self.__defered_force_tree_label(old_name, old_name)
             return old_name  # prevent treeView label change on error
@@ -245,7 +244,7 @@ class ControlTreeMayaUI:
         # Get the parent ControllerNode from the map
         parent_node = self.controller_map.get(node)
         if not parent_node:
-            cmds.warning(
+            LOGGER.warning(
                 f"Parent controller '{node}' not found in controller map.")
             return
 
@@ -670,7 +669,7 @@ class ControlTreeMayaUI:
         controller_node = self.controller_map.get(node, None)
         # Ensure node exists in our runtime map
         if not controller_node:
-            cmds.warning(
+            LOGGER.warning(
                 f"Node {node} not found in controller_map. Aborting bake.")
             return False
 
@@ -859,7 +858,7 @@ class ControlTreeMayaUI:
         controller_node = self.controller_map.get(node, None)
         # Ensure node exists in our runtime map
         if not controller_node:
-            cmds.warning(
+            LOGGER.warning(
                 f"Node {node} not found in controller_map. Aborting bake.")
             return False
 
@@ -867,7 +866,7 @@ class ControlTreeMayaUI:
             try:
                 self.__delete_controller(controller_node)
             except Exception:
-                LOGGER.exception("Error during Bake & Delete.")
+                LOGGER.exception("Error during Delete.")
                 raise
         return True
 

@@ -339,7 +339,7 @@ class PivotTool:
             cmds.deleteAttr(child, attribute=constants.ATTRIBUTE_SAVED_ANIM)
 
     def __cleanup_pivot_edit(self):
-        cmds.warning("Cleaning pivot edit resources")
+        LOGGER.warning("Cleaning pivot edit resources")
 
         job_to_kill = self.job_selection_changed
         self.job_selection_changed = None
