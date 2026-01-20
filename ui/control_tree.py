@@ -1,10 +1,9 @@
-import maya.api.OpenMaya as om
 import maya.cmds as cmds
+import cr_tempController.core.baking_service as baking_service
 import cr_tempController.core.controller_factory as controller_factory
 import cr_tempController.core.controller_node as ctrl_node
 import cr_tempController.core.pivot_tools as pivot_tools
 import cr_tempController.constants as constants
-import cr_tempController.utils.animation as utils_animation
 import cr_tempController.utils.nodes as utils_nodes
 import cr_tempController.utils.context as utils_context
 import logging
@@ -308,46 +307,6 @@ class ControlTreeMayaUI:
         self.controller_map[temp_controller_name] = temp_controller_node
         self.root_nodes.append(base_controller_node.name)
 
-    def __get_min_first_keyframe(self, parent, controller, start_time, end_time):
-        # TODO rework cf below (__get_first_last_keyframe)
-        LOGGER.info("-- __get_min_first_keyframe --")
-        LOGGER.info(
-            f"parameter = parent = {parent}, controller = {controller}, start_time = {start_time}, end_time = {end_time}")
-        first_controller = cmds.findKeyframe(
-            controller, time=(start_time, end_time), which="first")
-        first_parent = cmds.findKeyframe(
-            parent, time=(start_time, end_time), which="first")
-        LOGGER.info(
-            f"first_controller = {first_controller} / first_parent = {first_parent}")
-        return min(cmds.findKeyframe(controller, time=(start_time, end_time), which="first") or start_time,
-                   cmds.findKeyframe(parent, time=(start_time, end_time), which="first") or start_time)
-
-    def __get_max_last_keyframe(self, parent, controller, start_time, end_time):
-        # TODO rework cf below (__get_first_last_keyframe)
-        LOGGER.info("-- __get_max_last_keyframe --")
-        LOGGER.info(
-            f"parameter = parent = {parent}, controller = {controller}, start_time = {start_time}, end_time = {end_time}")
-        last_controller = cmds.findKeyframe(
-            controller, time=(start_time, end_time), which="last")
-        last_parent = cmds.findKeyframe(
-            parent, time=(start_time, end_time), which="last")
-        LOGGER.info(
-            f"last_controller = {last_controller} / last_parent = {last_parent}")
-        return max(cmds.findKeyframe(controller, time=(start_time, end_time), which="last") or end_time,
-                   cmds.findKeyframe(parent, time=(start_time, end_time), which="last") or end_time)
-
-    def __get_first_last_keyframe(self, parent, controller):
-        """
-        TODO If parent not animated => get from controller
-        But if child of parent has key after -> need to take them
-        """
-        start_time, end_time = utils_animation.get_start_end_time_of_animation()
-        first_key = self.__get_min_first_keyframe(
-            parent, controller, start_time, end_time)
-        last_key = self.__get_max_last_keyframe(
-            parent, controller, start_time, end_time)
-        return int(first_key), int(last_key)
-
     def confirm_action(self, title: str, message: str, icon: str, on_confirm: callable):
         result = cmds.confirmDialog(
             title=title,
@@ -481,7 +440,9 @@ class ControlTreeMayaUI:
     def __bake_and_delete(self, node: ctrl_node.ControllerNode):
        # If parent is base constroller, can bake it direct
         if self.__is_root_temp_controller(node):
-            self.__bake_temporary_controller_to_base(node)
+            baking_service.bake_temporary_controller_to_base(node)
+            # Remove all from tree
+            self.__delete_root_node(node)
         else:
             # 1. Bake children first (copy list to avoid mutation issues)
             for child in list(node.children):
@@ -490,86 +451,21 @@ class ControlTreeMayaUI:
                     NOT OK if parent -> child1/child2
                     OK if parent -> child -> child -> ...
                 """
-                self.__bake_temporary_controller_to_parent(child)
+                baking_service.bake_temporary_controller_to_parent(child)
+                self._remove_controller_from_model(child)
 
             # 2. Bake the current node
-            self.__bake_temporary_controller_to_parent(node)
+            baking_service.bake_temporary_controller_to_parent(node)
+
+            self._remove_controller_from_model(node)
 
     def __is_root_temp_controller(self, node: ctrl_node.ControllerNode) -> bool:
         return node.parent.name in self.root_nodes
-
-    def __bake_temporary_controller_to_parent(self, node: ctrl_node.ControllerNode):
-        time_range = self.__get_first_last_keyframe(
-            node.parent.name, node.name
-        )
-
-        node_parent_name = node.parent.name
-        base_controller = utils_nodes.get_base_controller(node_parent_name)
-        # Save matrix of base controller before transfer animation to retrieve the offset after
-        base_matrix = self._preserve_world_transform(base_controller)
-
-        self._transfer_animation_child_to_parent(node, time_range)
-
-        LOGGER.debug(
-            f"Rebuild constraint {base_controller} -> {node_parent_name}")
-
-        self._restore_matrix_no_autokey(base_controller, base_matrix)
-        cmds.parentConstraint(node_parent_name, base_controller, mo=True)
-
-        self._remove_controller_from_model(node)
-
-    def _preserve_world_transform(self, node):
-        return cmds.xform(node, q=True, ws=True, matrix=True)
-
-    def _transfer_animation_child_to_parent(self, child: ctrl_node.ControllerNode, time_range):
-        parent_name = child.parent.name
-        tmp_locator = cmds.spaceLocator(name=f"{parent_name}_TMP_LOC")[0]
-        try:
-            utils_animation.bake_with_constraint(driver=child.name,
-                                                 driven=tmp_locator,
-                                                 time_range=time_range,
-                                                 maintain_offset=False,
-                                                 smart=False)
-            cmds.delete(child.name)
-            utils_animation.bake_with_constraint(driver=tmp_locator,
-                                                 driven=parent_name,
-                                                 time_range=time_range,
-                                                 maintain_offset=False,
-                                                 smart=False)
-
-        finally:
-            cmds.delete(tmp_locator)
-
-    def _restore_matrix_no_autokey(self, node, matrix):
-        with utils_context.AutoKeyOff():
-            cmds.xform(node, ws=True, matrix=matrix)
 
     def _remove_controller_from_model(self, node):
         cmds.treeView(self.tree, e=True, removeItem=node.name)
         self.controller_map.pop(node.name)
         node.parent.children.remove(node)
-
-    def __bake_temporary_controller_to_base(self, node: ctrl_node.ControllerNode):
-        """Bake the temporary controller to the base controller."""
-        node_name = node.name
-        parent_node_name = node.parent.name
-
-        time_range = self.__get_first_last_keyframe(
-            parent_node_name, node_name)
-
-        # destinationLayer = "LayerName if bake on new layer"
-        cmds.bakeResults(
-            parent_node_name,
-            time=time_range,
-            simulation=True,
-            sparseAnimCurveBake=True,
-            preserveOutsideKeys=True,
-            sampleBy=1.0
-        )
-        cmds.filterCurve(parent_node_name)
-
-        # Remove all from tree
-        self.__delete_root_node(node)
 
     def __delete_root_node(self, node: ctrl_node.ControllerNode):
         node_name = node.name
@@ -718,13 +614,13 @@ class ControlTreeMayaUI:
 
         cmds.setAttr(f"{node_name}.translate", 0, 0, 0)
         cmds.setAttr(f"{node_name}.rotate", 0, 0, 0)
-        base_controller_world_position = self._preserve_world_transform(
+        base_controller_world_position = baking_service.preserve_world_transform(
             base_controller_name)
 
         cmds.delete(node_name)
 
-        self._restore_matrix_no_autokey(node=base_controller_name,
-                                        matrix=base_controller_world_position)
+        baking_service.restore_matrix_no_autokey(node=base_controller_name,
+                                                 matrix=base_controller_world_position)
 
         cmds.parentConstraint(
             node_parent_name,

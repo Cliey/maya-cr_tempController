@@ -397,12 +397,8 @@ class TempControllerWindowMayaUI:
         """
         Rebuild the entire tree if change has been detected
         """
-        LOGGER.info("REBUILD TRREE UNDO/REDO")
-
         new_controller_tree = utils_hierarchy.build_controller_tree_from_scene()
 
-        # LOGGER.info(f"self.current_controller_tree = {self.current_controller_tree}")
-        LOGGER.info(f"new_controller_tree = {new_controller_tree}")
         """
         [BUG-7] self.current_controller_tree is evaluated at window creation
         not when adding new controller so if I create new one and Undo, it doesn't detect the change.

@@ -1,3 +1,4 @@
+from . import baking_service
 from . import pivot_tools
 from . import temp_controller
 from . import controller_context
