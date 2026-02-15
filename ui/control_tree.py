@@ -1,16 +1,12 @@
-import maya.api.OpenMaya as om
 import maya.cmds as cmds
-import cr_tempController.core.controller_context as controller_context
-import cr_tempController.core.controller_mode as controller_mode
+import cr_tempController.core.baking_service as baking_service
+import cr_tempController.core.controller_factory as controller_factory
+import cr_tempController.core.controller_manager as controller_manager
 import cr_tempController.core.controller_node as ctrl_node
 import cr_tempController.core.pivot_tools as pivot_tools
 import cr_tempController.constants as constants
-import cr_tempController.utils.naming as utils_naming
-import cr_tempController.utils.animation as utils_animation
 import cr_tempController.utils.nodes as utils_nodes
-import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.context as utils_context
-import cr_tempController.utils.logging as utils_logging
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -21,73 +17,11 @@ ControllerNodeMap = dict[str, ctrl_node.ControllerNode]
 class ControlTreeMayaUI:
     def __init__(self, on_select_update_ui_callback: callable, controller_tree: dict = {}):
         self.tree = constants.TREE_NAME
-
-        self.controller_map: ControllerNodeMap = {}  # string → ControllerNode
-        # list of top-level controller (the one from which we want to create a temporary controller)
-        self.root_nodes: list[str] = []
-
+        self.manager = controller_manager.ControllerManager()
         self.active_pivot_tool = None  # keep a reference to prevent Garbage Collector
         self.on_select_update_ui_callback = on_select_update_ui_callback
 
-        self.rebuild_tree(controller_tree)
-
-    def __build_nodes(
-            self,
-            parent_node: ctrl_node.ControllerNode | None,
-            children_dict: dict) -> list[ctrl_node.ControllerNode]:
-        """
-        Build the **ControllerNode** objects from the provided **children_dict**
-        **Children_dict** is a dictionnary with the following structure:
-        {
-            "Base_controller_Name": {
-                "Temporary_controller_name": {
-                    "Child1_name": {}
-                }
-            }
-        }
-        :param parent_node: The parent node where the child will be added
-        :param children_dict: The dictionnary of all children
-        """
-        nodes = []
-
-        for name, children in children_dict.items():
-            node = ctrl_node.ControllerNode(name, parent=parent_node)
-            nodes.append(node)
-
-            if isinstance(children, dict) and children:
-                node.children = self.__build_nodes(node, children)
-
-        return nodes
-
-    def _install_tree(self, root_nodes: list[ctrl_node.ControllerNode]) -> None:
-        """
-        Install a freshly built controller tree into internal state.
-        """
-        self.root_nodes = []
-        self.controller_map.clear()
-
-        def register(node: ctrl_node.ControllerNode):
-            self.controller_map[node.name] = node
-            for child in node.children:
-                register(child)
-
-        for node in root_nodes:
-            self.root_nodes.append(node.name)
-            register(node)
-
-    def rebuild_tree(self, controller_tree: dict = {}):
-        """
-        Rebuild the entire controller tree from stored data.
-        Safe to call on Undo and Redo.
-        """
-        LOGGER.info("Rebuilding controller tree")
-
-        root_nodes = self.__build_nodes(
-            parent_node=None,
-            children_dict=controller_tree
-        )
-
-        self._install_tree(root_nodes)
+        self.manager.rebuild_tree(controller_tree)
 
     def rebuild_tree_view(self):
         cmds.treeView(self.tree, e=True, removeAll=True)
@@ -103,7 +37,7 @@ class ControlTreeMayaUI:
             for child in node.children:
                 _populate(node.name, child)
 
-        for root_name, node in self.controller_map.items():
+        for node in self.manager.get_controller_map_values():
             if node.parent is None:
                 _populate("", node)
 
@@ -111,7 +45,7 @@ class ControlTreeMayaUI:
         """
         Create the treeView object into the UI under **layout**.
 
-        :param layout: Layout where the treeView will be added 
+        :param layout: Layout where the treeView will be added
         """
 
         self.tree = cmds.treeView(self.tree,
@@ -124,21 +58,6 @@ class ControlTreeMayaUI:
                                   editLabelCommand=self.__on_edit_label,
                                   itemRenamedCommand=self.__on_item_renamed,
                                   pressCommand=[(1, self.__on_add_child)])
-
-        # self.__init_undo_redo_scriptjob()
-
-    def __init_undo_redo_scriptjob(self):
-        """
-        Initialize scriptJobs for Undo and Redo command to rebuild the tree.
-        """
-        cmds.scriptJob(
-            event=["Undo", self.__rebuild_tree],
-            parent=self.tree,
-            protected=True)
-        cmds.scriptJob(
-            event=["Redo", self.__rebuild_tree],
-            parent=self.tree,
-            protected=True)
 
     def __on_select(self, node, is_selected):
         if not is_selected:
@@ -156,7 +75,7 @@ class ControlTreeMayaUI:
         :return: Description
         :rtype: bool
         """
-        return node in self.controller_map or node in self.root_nodes
+        return self.manager.contains(node)
 
     def select_item(self, node: str):
         """
@@ -186,11 +105,12 @@ class ControlTreeMayaUI:
         :param new_name: New name of the controller
         """
         LOGGER.debug(f"Edit name from: {old_name} to {new_name}")
-        if (old_name == new_name) or (old_name in self.root_nodes):
+        if (old_name == new_name) or self.manager.node_is_base_controller(old_name):
             self.__defered_force_tree_label(old_name, old_name)
             return old_name
         try:
-            controller_node = self.controller_map.get(old_name)
+            controller_node = self.manager.get_controller_node_from_controller_map(
+                old_name)
             if not controller_node:
                 LOGGER.warning(
                     f"Node {old_name} not found in controller_map. Aborting rename.")
@@ -200,9 +120,9 @@ class ControlTreeMayaUI:
 
             # Update model using the real Maya name
             controller_node.name = actual_new_name
-            self.controller_map[actual_new_name] = controller_node
-            if old_name != actual_new_name:
-                self.controller_map.pop(old_name, None)
+            self.manager.rename_controller(old_name=old_name,
+                                           new_name=actual_new_name,
+                                           controller_node=controller_node)
 
             # Should be used to rename it into the UI, treeView quirk
             self.__defered_force_tree_label(old_name, actual_new_name)
@@ -230,19 +150,17 @@ class ControlTreeMayaUI:
             lambda: _force_tree_label()
         )
 
-    def controller_ratio(self, depth):
-        return 1 * (0.9 ** depth)
-
-    def __on_add_child(self, node, _):
+    def __on_add_child(self, node: str, _):
         """
         Add a child to a temporary controller
 
-        :param node: the temporary controller we add a child to        
+        :param node: the temporary controller we add a child to
         """
         LOGGER.debug(f"Add child on: {node}")
 
         # Get the parent ControllerNode from the map
-        parent_node = self.controller_map.get(node)
+        parent_node = self.manager.get_controller_node_from_controller_map(
+            node)
         if not parent_node:
             LOGGER.warning(
                 f"Parent controller '{node}' not found in controller map.")
@@ -256,251 +174,43 @@ class ControlTreeMayaUI:
                 LOGGER.exception("Error when adding a child.")
                 raise
 
-    def create_child_controller(self, parent_node):
-        parent_name = parent_node.name
-        world_translation = cmds.xform(
-            parent_name,
-            query=True,
-            translation=True,
-            worldSpace=True)
-
-        LOGGER.warning(f"---> world_translation = {world_translation}")
-
-        context = self.__build_context(parent_node=parent_node)
-
-        child_controller = self.__create_new_controller(
-            name=f"{parent_name}_Child#",
-            parent_group=parent_name,
-            translation=world_translation,
-            context=context)
-
-        self._reconnect_constraints(child_controller)
-        self._register_child_node(parent_node, child_controller)
-
-        self.__updateTree(parent_name, child_controller)
-
-    def __build_context(self, parent_node):
-        parent_color = cmds.getAttr(f"{parent_node.name}.{constants.ATTRIBUTE_DISPLAY_COLOR}")[0] if cmds.attributeQuery(
-            constants.ATTRIBUTE_DISPLAY_COLOR, node=parent_node.name, exists=True) else [1, 0, 1]
-
-        default_shape = controller_shapes.ControllerShape.ROUNDED_SQUARE  # pick a safe enum
-
-        if cmds.control(constants.SHAPE_MENU_CREATION_NAME, exists=True):
-            controller_shape_label = cmds.optionMenu(
-                constants.SHAPE_MENU_CREATION_NAME, q=True, value=True
-            )
-            shape = controller_shapes.SHAPE_LABEL_TO_ENUM.get(
-                controller_shape_label, default_shape
-            )
-        else:
-            shape = default_shape
-
-        controller_shape_label = cmds.optionMenu(
-            constants.SHAPE_MENU_CREATION_NAME, q=True, value=True)
-
-        return controller_context.TempControllerCreationContext(
-            size_ratio=self.controller_ratio(parent_node.depth),
-            rgb_color=parent_color,
-            shape=shape
-        )
-
-    def __create_new_controller(self, name: str, parent_group: str, translation: list[float], context: controller_context.TempControllerCreationContext) -> str:
+    def create_child_controller(self, parent_node: ctrl_node.ControllerNode):
         """
-        Create a new controller with the selected shape under parent controller
+        Create a child controller from the parent_node
 
-        :param name: Name of the new controller
-        :type name: str
-        :param parent_group: Parent of the new controller
-        :type parent_group: str
-        :param translation: Position where the new controller will be created
-        :type translation: list[float]
-        :param context: Data context for the new controller
-        :type context: controller_context.TempControllerCreationContext
-        :return: Name of the new controller
-        :rtype: str
+        :param parent_node: Description
+        :type parent_node: ctrl_node.ControllerNode
         """
+        # Factory creates the Maya node
+        child_controller = controller_factory.create_child_controller(
+            parent_node=parent_node)
 
-        controller = controller_shapes.create_controller(
-            name=name, shape=context.shape, ratio=context.size_ratio)
-        cmds.color(controller, rgbColor=context.rgb_color)
+        # Rewire constraints
+        utils_nodes.reconnect_constraints(child_controller)
 
-        # Store color for later retrieval
-        utils_animation.store_display_color_rgb(controller, context.rgb_color)
+        # Register in tree state
+        self.manager.register_child_node(parent_node, child_controller)
 
-        cmds.parent(controller, parent_group)
-        cmds.rotate(0, 0, 0, controller)
-        # TODO: can adapt to boundaries
-        cmds.xform(controller, t=translation, ws=True)
-        return controller
+        self.__updateTree(parent_node.name, child_controller)
 
-    def _reconnect_constraints(self, child_controller: str) -> None:
+    def register_controller_in_tree(self, base_controller: str, temp_controller: str):
         """
-        Rewire parent constraints so the new controller drives the source.
+        Finalize temp controller creation: run factory operations + update UI state.
+
+        :param base_controller: Name of the original controller
+        :param temp_controller: Name of the newly created temp controller
+        :param context: Creation context
         """
-        data_node = utils_nodes.retrieve_data_node(child_controller)
-        source_controller = utils_nodes.get_source_controller(data_node)
-
-        parent_group = cmds.listRelatives(
-            child_controller, parent=True, fullPath=True
-        )[0]
-
-        cmds.parentConstraint(
-            child_controller,
-            source_controller,
-            maintainOffset=True
-        )
-
-        cmds.parentConstraint(
-            parent_group,
-            source_controller,
-            edit=True,
-            remove=True
-        )
-
-    def _register_child_node(self, parent_node: ctrl_node.ControllerNode, child_controller: str):
-        """
-        Create ControllerNode instance and register it internally.
-        """
-        child_node = ctrl_node.ControllerNode(
-            name=child_controller,
-            parent=parent_node
-        )
-
-        parent_node.add_child(child_node)
-        self.controller_map[child_node.name] = child_node
-
-    def create_new_temporary_controller_from_base_controller(self, base_controller: str, context: controller_context.TempControllerCreationContext):
-        """
-        Create a new temporary controller for a controller selected by the user.
-        Only called when pressing "New Controller button"
-
-        :param base_controller: Controller we want to add a temporary controller
-        :type base_controller: str
-        :param mode: Mode to create the controller
-        :type mode: controller_mode.ControllerCreationMode
-        :param rgb_color: RGB Color in viewport of the new controller
-        :type rgb_color: list[float]
-        """
-
-        """ TODO
-        - Add a driver to say if we want to activate the temp controller or not. Connected ot the parent constraint.
-        - Driver will be the same for all child. Add in UI?"""
-        LOGGER.info(f"Create controller with mode = {context.mode}")
-        with utils_context.UndoChunk():
-            try:
-                temp_controller = self.__create_temp_controller(
-                    base_controller=base_controller,
-                    context=context
-                )
-
-                self._finalize_temp_controller(
-                    base_controller=base_controller,
-                    temp_controller=temp_controller,
-                    context=context
-                )
-
-                cmds.select(temp_controller)
-
-            except Exception:
-                LOGGER.exception(
-                    "Error during creation of a new Temp Controller.")
-                raise
-
-    def __create_temp_controller(self, base_controller: str, context: controller_context.TempControllerCreationContext) -> tuple[list[float], str]:
-
-        world_translation = cmds.xform(
-            base_controller,
-            q=True,
-            t=True,
-            ws=True
-        )
-
-        temp_controller = self.__create_new_controller(
-            name=f"{base_controller}{constants.SUFFIXE_TEMP_CONTROL_CTRLLER}",
-            parent_group=constants.TEMP_PIVOT_GROUP,
-            translation=world_translation,
-            context=context
-        )
-
-        return temp_controller
-
-    def _finalize_temp_controller(self, base_controller: str, temp_controller: str, context: controller_context.TempControllerCreationContext):
-        """
-        Apply all post-creation operations consistently.
-        """
-
-        # Create Data Node and move New Controller under it
-        self.__create_data_node(
-            base_controller_name=base_controller,
-            temp_controller_name=temp_controller,
-            context=context
-        )
-
-        # Match transform once
-        cmds.delete(cmds.parentConstraint(
-            base_controller,
-            temp_controller,
-            mo=False
-        ))
-
-        # Copy animation & Bake on all Keys
-        utils_animation.copy_anim_from_parent_to_target_smart(
-            parent=base_controller,
-            target=temp_controller
-        )
-
-        # Create the Controller Tree
+        # 2. Register in tree data model
         self.__create_controller_tree(
             base_controller_name=base_controller,
             temp_controller_name=temp_controller
         )
 
-        # Parenting Based to New Controller
-        cmds.parentConstraint(
-            temp_controller,
-            base_controller
-        )
-
-        # Update tree with Parent Controller & the new
+        # 3. Update tree UI
         self.__updateTree('', base_controller)
         self.__updateTree(base_controller, temp_controller)
         cmds.select(temp_controller)
-
-    def __create_data_node(self, base_controller_name: str, temp_controller_name: str, context: controller_context.TempControllerCreationContext):
-        data_node = cmds.group(em=True,
-                               name=utils_naming.build_temp_control_data_name(
-                                   base_controller_name),
-                               parent=constants.TEMP_PIVOT_GROUP)
-
-        cmds.addAttr(data_node, attributeType="message",
-                     longName=constants.DATA_SOURCE_NODE)
-        cmds.connectAttr(f'{base_controller_name}.message',
-                         f'{data_node}.{constants.DATA_SOURCE_NODE}')
-
-        translation = (0, 0, 0)  # Worldspace translation
-
-        match context.mode:
-            case controller_mode.ControllerCreationMode.WORLD_SPACE:
-                translation = (0, 0, 0)
-
-            case controller_mode.ControllerCreationMode.OBJECT_SPACE:
-                world_pos = om.MVector(cmds.xform(
-                    base_controller_name, q=True, t=True, ws=True))
-
-                local_pos = om.MVector(cmds.xform(
-                    base_controller_name, q=True, t=True))
-
-                translation = world_pos - local_pos
-
-            case _:
-                raise NotImplementedError(
-                    f"Controller mode not implemented: {context.mode}")
-
-        cmds.xform(data_node, t=translation, ws=True)
-        utils_animation.lock_transform_attribute(data_node)
-
-        cmds.parent(temp_controller_name, data_node)
-        return data_node
 
     def __create_controller_tree(self, base_controller_name: str, temp_controller_name: str,):
         base_controller_node = ctrl_node.ControllerNode(
@@ -508,48 +218,9 @@ class ControlTreeMayaUI:
         temp_controller_node = ctrl_node.ControllerNode(
             name=temp_controller_name, parent=base_controller_node)
         base_controller_node.add_child(temp_controller_node)
-        self.controller_map[temp_controller_name] = temp_controller_node
-        self.root_nodes.append(base_controller_node.name)
 
-    def __get_min_first_keyframe(self, parent, controller, start_time, end_time):
-        # TODO rework cf below (__get_first_last_keyframe)
-        LOGGER.info("-- __get_min_first_keyframe --")
-        LOGGER.info(
-            f"parameter = parent = {parent}, controller = {controller}, start_time = {start_time}, end_time = {end_time}")
-        first_controller = cmds.findKeyframe(
-            controller, time=(start_time, end_time), which="first")
-        first_parent = cmds.findKeyframe(
-            parent, time=(start_time, end_time), which="first")
-        LOGGER.info(
-            f"first_controller = {first_controller} / first_parent = {first_parent}")
-        return min(cmds.findKeyframe(controller, time=(start_time, end_time), which="first") or start_time,
-                   cmds.findKeyframe(parent, time=(start_time, end_time), which="first") or start_time)
-
-    def __get_max_last_keyframe(self, parent, controller, start_time, end_time):
-        # TODO rework cf below (__get_first_last_keyframe)
-        LOGGER.info("-- __get_max_last_keyframe --")
-        LOGGER.info(
-            f"parameter = parent = {parent}, controller = {controller}, start_time = {start_time}, end_time = {end_time}")
-        last_controller = cmds.findKeyframe(
-            controller, time=(start_time, end_time), which="last")
-        last_parent = cmds.findKeyframe(
-            parent, time=(start_time, end_time), which="last")
-        LOGGER.info(
-            f"last_controller = {last_controller} / last_parent = {last_parent}")
-        return max(cmds.findKeyframe(controller, time=(start_time, end_time), which="last") or end_time,
-                   cmds.findKeyframe(parent, time=(start_time, end_time), which="last") or end_time)
-
-    def __get_first_last_keyframe(self, parent, controller):
-        """
-        TODO If parent not animated => get from controller
-        But if child of parent has key after -> need to take them
-        """
-        start_time, end_time = utils_animation.get_start_end_time_of_animation()
-        first_key = self.__get_min_first_keyframe(
-            parent, controller, start_time, end_time)
-        last_key = self.__get_max_last_keyframe(
-            parent, controller, start_time, end_time)
-        return int(first_key), int(last_key)
+        self.manager.register_first_temporary_controller(base_controller=base_controller_node,
+                                                         temp_controller=temp_controller_node)
 
     def confirm_action(self, title: str, message: str, icon: str, on_confirm: callable):
         result = cmds.confirmDialog(
@@ -574,7 +245,7 @@ class ControlTreeMayaUI:
         selected_controller = cmds.treeView(
             self.tree, query=True, selectItem=True)[0]
 
-        if selected_controller in self.root_nodes:
+        if self.manager.node_is_base_controller(selected_controller):
             LOGGER.warning(
                 f"{selected_controller} is a base controller. You can't change the pivot of this controller.")
             self.error_dialog(
@@ -628,8 +299,10 @@ class ControlTreeMayaUI:
         self.__confirm_change_pivot(node)
 
     def __confirm_change_pivot(self, node):
-        selected_controller = self.controller_map.get(node)
-        parent_is_root = selected_controller.parent.name in self.root_nodes
+        selected_controller = self.manager.get_controller_node_from_controller_map(
+            node)
+        parent_is_root = self.manager.node_is_base_controller(
+            selected_controller.parent.name)
         self.active_pivot_tool = pivot_tools.PivotTool(
             node, parent_is_root=parent_is_root)
         self.active_pivot_tool.exec()
@@ -644,7 +317,7 @@ class ControlTreeMayaUI:
         selected_controller = cmds.treeView(
             self.tree, query=True, selectItem=True)[0]
 
-        if selected_controller in self.root_nodes:
+        if self.manager.node_is_base_controller(selected_controller):
             LOGGER.warning(
                 f"{selected_controller} is a base controller. You can't bake or delete this controller.")
             self.error_dialog(title="Error during Bake and Delete",
@@ -666,7 +339,8 @@ class ControlTreeMayaUI:
         :param node: Controller name to bake
         :return: Result of the operation. False if an error occured. True if everything was fine
         """
-        controller_node = self.controller_map.get(node, None)
+        controller_node = self.manager.get_controller_node_from_controller_map(
+            node)
         # Ensure node exists in our runtime map
         if not controller_node:
             LOGGER.warning(
@@ -683,125 +357,44 @@ class ControlTreeMayaUI:
 
     def __bake_and_delete(self, node: ctrl_node.ControllerNode):
        # If parent is base constroller, can bake it direct
-        if self.__is_root_temp_controller(node):
-            self.__bake_temporary_controller_to_base(node)
+        if self.manager.node_is_base_controller(node.parent.name):
+            baking_service.bake_temporary_controller_to_base(node)
+            # Remove all from tree
+            self.__delete_root_node(node)
         else:
             # 1. Bake children first (copy list to avoid mutation issues)
             for child in list(node.children):
                 """
-                    TODO -> will not work if has multiple children 
+                    TODO -> will not work if has multiple children
                     NOT OK if parent -> child1/child2
                     OK if parent -> child -> child -> ...
                 """
-                self.__bake_temporary_controller_to_parent(child)
+                baking_service.bake_temporary_controller_to_parent(child)
+                self._remove_controller_from_model(child)
 
             # 2. Bake the current node
-            self.__bake_temporary_controller_to_parent(node)
+            baking_service.bake_temporary_controller_to_parent(node)
 
-    def __is_root_temp_controller(self, node: ctrl_node.ControllerNode) -> bool:
-        return node.parent.name in self.root_nodes
-
-    def __bake_temporary_controller_to_parent(self, node: ctrl_node.ControllerNode):
-        time_range = self.__get_first_last_keyframe(
-            node.parent.name, node.name
-        )
-
-        node_parent_name = node.parent.name
-        base_controller = utils_nodes.get_base_controller(node_parent_name)
-        # Save matrix of base controller before transfer animation to retrieve the offset after
-        base_matrix = self._preserve_world_transform(base_controller)
-
-        self._transfer_animation_child_to_parent(node, time_range)
-
-        LOGGER.debug(
-            f"Rebuild constraint {base_controller} -> {node_parent_name}")
-
-        self._restore_matrix_no_autokey(base_controller, base_matrix)
-        cmds.parentConstraint(node_parent_name, base_controller, mo=True)
-
-        self._remove_controller_from_model(node)
-
-    def _preserve_world_transform(self, node):
-        return cmds.xform(node, q=True, ws=True, matrix=True)
-
-    def _transfer_animation_child_to_parent(self, child: ctrl_node.ControllerNode, time_range):
-        parent_name = child.parent.name
-        tmp_locator = cmds.spaceLocator(name=f"{parent_name}_TMP_LOC")[0]
-        try:
-            utils_animation.bake_with_constraint(driver=child.name,
-                                                 driven=tmp_locator,
-                                                 time_range=time_range,
-                                                 maintain_offset=False,
-                                                 smart=False)
-            cmds.delete(child.name)
-            utils_animation.bake_with_constraint(driver=tmp_locator,
-                                                 driven=parent_name,
-                                                 time_range=time_range,
-                                                 maintain_offset=False,
-                                                 smart=False)
-
-        finally:
-            cmds.delete(tmp_locator)
-
-    def _restore_matrix_no_autokey(self, node, matrix):
-        with utils_context.AutoKeyOff():
-            cmds.xform(node, ws=True, matrix=matrix)
+            self._remove_controller_from_model(node)
 
     def _remove_controller_from_model(self, node):
         cmds.treeView(self.tree, e=True, removeItem=node.name)
-        self.controller_map.pop(node.name)
-        node.parent.children.remove(node)
-
-    def __bake_temporary_controller_to_base(self, node: ctrl_node.ControllerNode):
-        """Bake the temporary controller to the base controller."""
-        node_name = node.name
-        parent_node_name = node.parent.name
-
-        time_range = self.__get_first_last_keyframe(
-            parent_node_name, node_name)
-
-        # destinationLayer = "LayerName if bake on new layer"
-        cmds.bakeResults(
-            parent_node_name,
-            time=time_range,
-            simulation=True,
-            sparseAnimCurveBake=True,
-            preserveOutsideKeys=True,
-            sampleBy=1.0
-        )
-        cmds.filterCurve(parent_node_name)
-
-        # Remove all from tree
-        self.__delete_root_node(node)
+        self.manager.remove_controller_from_model(node)
 
     def __delete_root_node(self, node: ctrl_node.ControllerNode):
-        node_name = node.name
-        node_parent_name = node.parent.name
-        data_node = utils_nodes.retrieve_data_node(node_name)
-
-        cmds.delete(node_name, data_node)
-        # Remove node and all its child
-        self._remove_node_tree_from_map(node)
-
-        # Remove parent (Base controller) from controller_map AND root_nodes list
-        self.controller_map.pop(node_parent_name)
-        self.root_nodes.remove(node_parent_name)
-        cmds.treeView(self.tree, e=True, removeItem=node_parent_name)
-
-    def _remove_node_tree_from_map(self, node: ctrl_node.ControllerNode):
-        """
-        Recursively remove node and all children from controller_map
-
-        :param node: Node we want to delete from the controller_map
-        :type node: ctrl_node.ControllerNode
-        """
-
-        for child in node.children:
-            self._remove_node_tree_from_map(child)
-
-        self.controller_map.pop(node.name)
+        if self.manager.delete_root_node(node):
+            node_name = node.name
+            data_node = utils_nodes.retrieve_data_node(node_name)
+            cmds.delete(node_name, data_node)
+            cmds.treeView(self.tree, e=True, removeItem=node.parent.name)
 
     def __updateTree(self, parent, node):
+        """
+        Update the tree view UI to add *node* to *parent*
+
+        :param parent: Parent to add the node under
+        :param node: Node to add
+        """
         cmds.treeView(self.tree, e=True, addItem=(node, parent))
         if not parent:
             cmds.treeView(self.tree,
@@ -825,7 +418,7 @@ class ControlTreeMayaUI:
         selected_controller = cmds.treeView(
             self.tree, query=True, selectItem=True)[0]
 
-        if selected_controller in self.root_nodes:
+        if self.manager.node_is_base_controller(selected_controller):
             LOGGER.warning(
                 f"{selected_controller} is a base controller. You can't delete this controller.")
             self.error_dialog(
@@ -872,7 +465,8 @@ class ControlTreeMayaUI:
         return
 
     def __on_delete_controller(self, node: str):
-        controller_node = self.controller_map.get(node, None)
+        controller_node = self.manager.get_controller_node_from_controller_map(
+            node)
         # Ensure node exists in our runtime map
         if not controller_node:
             LOGGER.warning(
@@ -889,7 +483,7 @@ class ControlTreeMayaUI:
 
     def __delete_controller(self, node: ctrl_node.ControllerNode):
        # If parent is base constroller
-        if self.__is_root_temp_controller(node):
+        if self.manager.node_is_base_controller(node.parent.name):
             self.__delete_root_node(node)
             return
 
@@ -915,13 +509,13 @@ class ControlTreeMayaUI:
 
         cmds.setAttr(f"{node_name}.translate", 0, 0, 0)
         cmds.setAttr(f"{node_name}.rotate", 0, 0, 0)
-        base_controller_world_position = self._preserve_world_transform(
+        base_controller_world_position = baking_service.preserve_world_transform(
             base_controller_name)
 
         cmds.delete(node_name)
 
-        self._restore_matrix_no_autokey(node=base_controller_name,
-                                        matrix=base_controller_world_position)
+        baking_service.restore_matrix_no_autokey(node=base_controller_name,
+                                                 matrix=base_controller_world_position)
 
         cmds.parentConstraint(
             node_parent_name,
@@ -941,5 +535,13 @@ class ControlTreeMayaUI:
                            dismissString="Cancel")
 
     def on_close(self):
-        self.controller_map.clear()
-        self.root_nodes.clear()
+        self.manager.clear()
+
+    def rebuild_tree(self, controller_tree):
+        self.manager.rebuild_tree(controller_tree)
+
+    def node_is_temporary_controller(self, node):
+        return self.manager.node_is_temporary_controller(node)
+
+    def node_is_base_controller(self, node):
+        return self.manager.node_is_base_controller(node)

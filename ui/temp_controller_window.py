@@ -2,6 +2,7 @@ import maya.cmds as cmds
 import cr_tempController.constants as constants
 from . import control_tree
 import cr_tempController.core.controller_context as controller_context
+import cr_tempController.core.controller_factory as controller_factory
 import cr_tempController.core.controller_mode as controller_mode
 import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.hierarchy as utils_hierarchy
@@ -39,8 +40,10 @@ class TempControllerWindowMayaUI:
             return
 
         cmds.optionMenu(self.shape_menu_creation, edit=True, enable=True)
-        is_controller = selected_object in self.tree_view_control.controller_map
-        is_root_node = selected_object in self.tree_view_control.root_nodes
+        is_controller = self.tree_view_control.node_is_temporary_controller(
+            selected_object)
+        is_root_node = self.tree_view_control.node_is_base_controller(
+            selected_object)
         in_tree = is_controller or is_root_node
 
         # Enable create button ONLY if object is NOT in tree
@@ -396,12 +399,8 @@ class TempControllerWindowMayaUI:
         """
         Rebuild the entire tree if change has been detected
         """
-        LOGGER.info("REBUILD TRREE UNDO/REDO")
-
         new_controller_tree = utils_hierarchy.build_controller_tree_from_scene()
 
-        # LOGGER.info(f"self.current_controller_tree = {self.current_controller_tree}")
-        LOGGER.info(f"new_controller_tree = {new_controller_tree}")
         """
         [BUG-7] self.current_controller_tree is evaluated at window creation
         not when adding new controller so if I create new one and Undo, it doesn't detect the change.
@@ -583,9 +582,15 @@ class TempControllerWindowMayaUI:
             shape=controller_shapes.SHAPE_LABEL_TO_ENUM[controller_shape_label]
         )
 
-        self.tree_view_control.create_new_temporary_controller_from_base_controller(
+        temp_controller = controller_factory.create_new_temporary_controller_from_base_controller(
             base_controller=base_controller,
             context=context
+        )
+
+        # Update Tree view
+        self.tree_view_control.register_controller_in_tree(
+            base_controller=base_controller,
+            temp_controller=temp_controller
         )
 
 
