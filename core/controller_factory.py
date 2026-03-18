@@ -97,7 +97,130 @@ def create_new_controller(name: str, parent_group: str, translation: list[float]
     cmds.rotate(0, 0, 0, controller)
     # TODO: can adapt to boundaries
     cmds.xform(controller, t=translation, ws=True)
+
+    # Warning if NurbCurves are hidden
+    if not cmds.optionVar(exists=constants.SKIP_NURBS_WARNING) or not cmds.optionVar(q=constants.SKIP_NURBS_WARNING):
+        panel = cmds.getPanel(withFocus=True)
+        if cmds.getPanel(typeOf=panel) == 'modelPanel':
+            state = cmds.modelEditor(panel, query=True, nurbsCurves=True)
+            if not state:
+                show_nurb_warning(panel)
+
+    # TODO: option to always reveal nurbs, a checkbox into main window
+
     return controller
+
+
+def show_nurb_warning(panel: str):
+
+    if cmds.window("nurbsWarningWin", exists=True):
+        cmds.deleteUI("nurbsWarningWin")
+
+    warning_window = cmds.window(
+        "nurbsWarningWin",
+        title="NURBS Curves Hidden",
+        sizeable=False
+    )
+
+    # ===== MAIN LAYOUT =====
+    main_col = cmds.columnLayout(adjustableColumn=True)
+
+    cmds.separator(h=10,
+                   style='none',
+                   parent=main_col)  # TOP MARGIN
+
+    # ===== HORIZONTAL MARGIN CONTAINER =====
+    outer_row = cmds.rowLayout(
+        numberOfColumns=3,
+        adjustableColumn=2,
+        parent=main_col
+    )
+
+    cmds.separator(w=10,
+                   style='none',
+                   parent=outer_row)  # LEFT MARGIN
+
+    # ===== CONTENT COLUMN =====
+    content_col = cmds.columnLayout(adjustableColumn=True,
+                                    rowSpacing=10,
+                                    parent=outer_row)
+
+    # ---- ICON + TEXT ----
+    row_message = cmds.rowLayout(
+        numberOfColumns=2,
+        columnWidth2=(50, 300),
+        adjustableColumn=2,
+        parent=content_col
+    )
+
+    cmds.iconTextStaticLabel(
+        style='iconOnly',
+        image1='infoModal.png',  # Maya built-in icon
+        align="left",
+        width=40,
+        height=40,
+        parent=row_message
+    )
+
+    text_col = cmds.columnLayout(
+        adjustableColumn=True,
+        rowSpacing=5,
+        parent=row_message)
+
+    cmds.text(
+        label="NURBS Curves are hidden in the viewport.\n"
+              "Controllers may not be visible.",
+        align="left",
+        parent=text_col
+    )
+
+    cmds.separator(h=10, style='none', parent=text_col)
+
+    never_show_checkbox = cmds.checkBox(label="Never show again",
+                                        parent=text_col)
+
+    cmds.separator(h=5, style='none', parent=content_col)
+
+    # ---- BUTTONS ----
+    def _on_reveal_nurbs_curves(_):
+        save_pref(cmds.checkBox(never_show_checkbox, q=True, value=True))
+        cmds.modelEditor(panel, edit=True, nurbsCurves=True)
+        cmds.deleteUI(warning_window)
+
+    def _on_continue(_):
+        save_pref(cmds.checkBox(never_show_checkbox, q=True, value=True))
+        cmds.deleteUI(warning_window)
+
+    button_row = cmds.rowLayout(
+        numberOfColumns=3,
+        adjustableColumn=1,
+        parent=content_col)
+
+    cmds.separator(style='none', parent=button_row)  # pushes buttons right
+
+    cmds.button(
+        label="Reveal Curves",
+        command=_on_reveal_nurbs_curves,
+        w=130,
+        parent=button_row
+    )
+
+    cmds.button(
+        label="Continue",
+        command=_on_continue,
+        w=90,
+        parent=button_row
+    )
+
+    cmds.separator(w=15, style='none', parent=outer_row)  # RIGHT MARGIN
+    cmds.separator(h=10, style='none', parent=main_col)  # BOTTOM MARGIN
+
+    cmds.showWindow(warning_window)
+
+
+def save_pref(never_show: bool):
+    if never_show:
+        cmds.optionVar(iv=(constants.SKIP_NURBS_WARNING, 1))
 
 
 def finalize_temp_controller(
