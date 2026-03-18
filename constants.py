@@ -70,3 +70,5 @@ LAST_COLOR_SELECTED_IS_CUSTOM = "cr_TempController.LastColorSelectedIsCustom"
 LAST_CUSTOM_COLOR_R = "cr_TempController.CustomRGB_R"
 LAST_CUSTOM_COLOR_G = "cr_TempController.CustomRGB_G"
 LAST_CUSTOM_COLOR_B = "cr_TempController.CustomRGB_B"
+
+SKIP_NURBS_WARNING = "cr_TempController.skipNurbsWarning"
