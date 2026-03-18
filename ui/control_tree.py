@@ -192,6 +192,7 @@ class ControlTreeMayaUI:
         self.manager.register_child_node(parent_node, child_controller)
 
         self.__updateTree(parent_node.name, child_controller)
+        self.__show_item_in_tree(item=child_controller)
 
     def register_controller_in_tree(self, base_controller: str, temp_controller: str):
         """
@@ -211,6 +212,14 @@ class ControlTreeMayaUI:
         self.__updateTree('', base_controller)
         self.__updateTree(base_controller, temp_controller)
         cmds.select(temp_controller)
+        self.__show_item_in_tree(item=temp_controller)
+
+    def __show_item_in_tree(self, item: str):
+        cmds.treeView(
+            self.tree,
+            edit=True,
+            showItem=item
+        )
 
     def __create_controller_tree(self, base_controller_name: str, temp_controller_name: str,):
         base_controller_node = ctrl_node.ControllerNode(
