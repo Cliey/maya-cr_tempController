@@ -33,6 +33,7 @@ SHAPE_MENU_CREATION_NAME = "optionShapeMenu"
 SHAPE_MENU_PROPERTIES_NAME = "propertiesShapeMenu"
 COLOR_CREATION = "colorCreation"
 COLOR_PROPERTIES = "colorProperties"
+ROTATE_ORDER_MENU_CREATION_NAME = "rotateOrderCreation"
 
 # TREE TEMP CONTROLLERS
 TREE_NAME = "controlTree"

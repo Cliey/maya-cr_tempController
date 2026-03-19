@@ -7,7 +7,9 @@ import cr_tempController.core.controller_mode as controller_mode
 import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.hierarchy as utils_hierarchy
 import cr_tempController.utils.naming as utils_naming
+import cr_tempController.utils.rotation_order as rotation_order
 import logging
+from enum import Enum
 
 LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +22,7 @@ class TempControllerWindowMayaUI:
 
         self.tree_view_control = control_tree.ControlTreeMayaUI(
             on_select_update_ui_callback=self._update_ui_from_selection,
+            build_context_callback=self._build_child_context,
             controller_tree=self.current_controller_tree)
 
         self.button_create_controller = constants.BUTTON_CREATE_CONTROLLER
@@ -30,6 +33,7 @@ class TempControllerWindowMayaUI:
         self.color_properties = None
         self.shape_menu_creation = constants.SHAPE_MENU_CREATION_NAME
         self.shape_menu_properties = constants.SHAPE_MENU_PROPERTIES_NAME
+        self.rotate_order_menu_creation = None
 
     def _update_ui_from_selection(self, selected_object: str | None):
         """
@@ -78,6 +82,36 @@ class TempControllerWindowMayaUI:
             self.color_properties.set_enabled(False)
 
         cmds.optionMenu(self.shape_menu_creation, edit=True, enable=False)
+
+    def _build_child_context(self, parent_node):
+        def __controller_ratio(depth):
+            return 1 * (0.9 ** depth)
+
+        parent_color = cmds.getAttr(f"{parent_node.name}.{constants.ATTRIBUTE_DISPLAY_COLOR}")[0] if cmds.attributeQuery(
+            constants.ATTRIBUTE_DISPLAY_COLOR, node=parent_node.name, exists=True) else [1, 0, 1]
+
+        default_shape = controller_shapes.ControllerShape.ROUNDED_SQUARE  # pick a safe enum
+
+        if cmds.control(constants.SHAPE_MENU_CREATION_NAME, exists=True):
+            controller_shape_label = cmds.optionMenu(
+                constants.SHAPE_MENU_CREATION_NAME, q=True, value=True
+            )
+            shape = controller_shapes.SHAPE_LABEL_TO_ENUM.get(
+                controller_shape_label, default_shape
+            )
+        else:
+            shape = default_shape
+
+        ro = self.rotate_order_menu_creation.get_rotate_order()
+        rotate_order = ro if ro is not None else cmds.getAttr(
+            f"{parent_node.name}.rotateOrder")
+
+        return controller_context.TempControllerCreationContext(
+            size_ratio=__controller_ratio(parent_node.depth),
+            rgb_color=parent_color,
+            shape=shape,
+            rotate_order=rotate_order
+        )
 
     def __job_on_selection_changed_callback(self):
         """
@@ -347,10 +381,17 @@ class TempControllerWindowMayaUI:
 
         cmds.setParent(create_frame)
 
+        # Rotate order
+        self.rotate_order_menu_creation = RotateOrderMenu(
+            name=constants.ROTATE_ORDER_MENU_CREATION_NAME,
+            parent=create_frame)
+
+        cmds.setParent(create_frame)
+
         # Shape and color
         option_shape_color_layout = cmds.rowColumnLayout(
             numberOfColumns=2,
-            columnWidth=[(1, 60), (2, 280)],
+            columnWidth=[(1, 80), (2, 260)],
             columnSpacing=[(2, 10)],
             rowSpacing=(1, 6)
         )
@@ -366,7 +407,6 @@ class TempControllerWindowMayaUI:
             parent=option_shape_color_layout)
 
         cmds.setParent(create_frame)
-        # cmds.colorSliderGrp(label = "", rgb = (1, 1, 0), columnWidth = [(1, 0), (2, 200)])
 
     def __build_tree_frame(self, parent):
         temp_frame = cmds.frameLayout(
@@ -576,11 +616,15 @@ class TempControllerWindowMayaUI:
                                                  q=True,
                                                  value=True)
 
+        ro = self.rotate_order_menu_creation.get_rotate_order()
+        rotate_order = ro if ro is not None else cmds.getAttr(
+            f"{base_controller}.rotateOrder")
+
         context = controller_context.TempControllerCreationContext(
             mode=controller_mode.ControllerCreationMode(mode_selected),
             rgb_color=self.color_creation.get_color(),
-            shape=controller_shapes.SHAPE_LABEL_TO_ENUM[controller_shape_label]
-        )
+            shape=controller_shapes.SHAPE_LABEL_TO_ENUM[controller_shape_label],
+            rotate_order=rotate_order)
 
         temp_controller = controller_factory.create_new_temporary_controller_from_base_controller(
             base_controller=base_controller,
@@ -700,3 +744,103 @@ class ColorSelector:
         cmds.iconTextButton(self.picker_btn, e=True, enable=state)
         cmds.radioButton(self.palette_radio, e=True, enable=state)
         cmds.radioButton(self.custom_radio, e=True, enable=state)
+
+
+class RotateOrderMenu:
+    class RotateOrderMenuChoice(Enum):
+        CURRENT_SELECTION = 1
+        CUSTOM = 2
+        AUTO = 3
+
+    MENU_CHOICE_LABEL_TO_ENUM = {
+        "Current Selection": RotateOrderMenuChoice.CURRENT_SELECTION,
+        "Custom": RotateOrderMenuChoice.CUSTOM,
+        # "Auto": ControllerShape.CIRCLE,
+
+    }
+
+    def __init__(self, name, parent):
+        self.name = name
+        self.parent = parent
+        self.row_layout = f"{name}_rowLayout"
+
+        self.rotate_order_dropdown = f"{name}_menu"
+        self.custom_rotate_order = f"{name}_customRotateOrderMenu"
+        self.custom_order_warning_message = f"{name}_warningMessage"
+
+        self._build()
+
+    def _build(self):
+        column_layout = cmds.columnLayout()
+        self.row_layout = cmds.rowLayout(
+            self.row_layout,
+            numberOfColumns=3,
+            columnWidth=[(1, 90), (2, 160), (3, 80)],
+            columnAttach=[(1, "right", 10), (2, "both", 0)],
+            parent=column_layout
+        )
+
+        cmds.text(label="Rotate Order:",
+                  align="right",
+                  parent=self.row_layout)
+
+        self.rotate_order_dropdown = self._create_option_menu(
+            menu_name=self.rotate_order_dropdown,
+            items=[label for label in self.MENU_CHOICE_LABEL_TO_ENUM.keys()],
+            change_command=self.__on_change_rotate_order_menu,
+            parent=self.row_layout
+        )
+
+        self.custom_rotate_order = self._create_option_menu(
+            menu_name=self.custom_rotate_order,
+            items=list(rotation_order.ROTATION_ORDERS.keys()),
+            visible=False,
+            parent=self.row_layout
+        )
+
+        self.custom_order_warning_message = cmds.text(label="Changing rotate order may affect animation accuracy.",
+                                                      align="left",
+                                                      # subtle amber
+                                                      font="smallPlainLabelFont",
+                                                      backgroundColor=(
+                                                          0.4, 0.3, 0.0),
+                                                      visible=False,
+                                                      parent=column_layout)
+
+    def __on_change_rotate_order_menu(self, selection):
+        is_custom = (
+            self.MENU_CHOICE_LABEL_TO_ENUM[selection] == self.RotateOrderMenuChoice.CUSTOM)
+        cmds.optionMenu(self.custom_rotate_order,
+                        edit=True,
+                        visible=is_custom)
+        cmds.text(self.custom_order_warning_message,
+                  edit=True, visible=is_custom)
+
+    def _create_option_menu(self, menu_name: str, items: list[str], parent: str, visible: bool = True, change_command=None):
+        kwargs = {}
+        if change_command is not None:
+            kwargs["changeCommand"] = change_command
+
+        option_menu = cmds.optionMenu(
+            menu_name,
+            visible=visible,
+            parent=parent,
+            **kwargs)
+        for item in items:
+            cmds.menuItem(label=item)
+        return option_menu
+
+    def _is_custom_selected(self) -> bool:
+        """
+        Check if custom rotate order is selected into DropDown menu
+        """
+        return cmds.optionMenu(self.rotate_order_dropdown,
+                               query=True,
+                               select=True) == self.RotateOrderMenuChoice.CUSTOM.value
+
+    def get_rotate_order(self) -> int | None:
+        if self._is_custom_selected():
+            label = cmds.optionMenu(
+                self.custom_rotate_order, query=True, value=True)
+            return rotation_order.ROTATION_ORDERS[label]
+        return None
