@@ -94,6 +94,9 @@ def create_new_controller(name: str, parent_group: str, translation: list[float]
     utils_animation.store_display_color_rgb(controller, context.rgb_color)
 
     cmds.parent(controller, parent_group)
+
+    # Change Rotate Order
+    cmds.setAttr(f"{controller}.rotateOrder", context.rotate_order)
     cmds.rotate(0, 0, 0, controller)
     # TODO: can adapt to boundaries
     cmds.xform(controller, t=translation, ws=True)
@@ -310,33 +313,7 @@ def create_data_node(base_controller_name: str, temp_controller_name: str, conte
     return data_node
 
 
-def build_context(parent_node):
-    def __controller_ratio(depth):
-        return 1 * (0.9 ** depth)
-
-    parent_color = cmds.getAttr(f"{parent_node.name}.{constants.ATTRIBUTE_DISPLAY_COLOR}")[0] if cmds.attributeQuery(
-        constants.ATTRIBUTE_DISPLAY_COLOR, node=parent_node.name, exists=True) else [1, 0, 1]
-
-    default_shape = controller_shapes.ControllerShape.ROUNDED_SQUARE  # pick a safe enum
-
-    if cmds.control(constants.SHAPE_MENU_CREATION_NAME, exists=True):
-        controller_shape_label = cmds.optionMenu(
-            constants.SHAPE_MENU_CREATION_NAME, q=True, value=True
-        )
-        shape = controller_shapes.SHAPE_LABEL_TO_ENUM.get(
-            controller_shape_label, default_shape
-        )
-    else:
-        shape = default_shape
-
-    return controller_context.TempControllerCreationContext(
-        size_ratio=__controller_ratio(parent_node.depth),
-        rgb_color=parent_color,
-        shape=shape
-    )
-
-
-def create_child_controller(parent_node: ctrl_node.ControllerNode):
+def create_child_controller(parent_node: ctrl_node.ControllerNode, context: controller_context.TempControllerCreationContext):
     """
     Create a child controller from the parent_node
 
@@ -353,8 +330,6 @@ def create_child_controller(parent_node: ctrl_node.ControllerNode):
         worldSpace=True)
 
     LOGGER.warning(f"---> world_translation = {world_translation}")
-
-    context = build_context(parent_node=parent_node)
 
     child_controller = create_new_controller(
         name=f"{parent_name}_Child#",
