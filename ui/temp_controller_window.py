@@ -766,16 +766,18 @@ class RotateOrderMenu:
 
         self.rotate_order_dropdown = f"{name}_menu"
         self.custom_rotate_order = f"{name}_customRotateOrderMenu"
+        self.custom_order_warning_message = f"{name}_warningMessage"
 
         self._build()
 
     def _build(self):
+        column_layout = cmds.columnLayout()
         self.row_layout = cmds.rowLayout(
             self.row_layout,
             numberOfColumns=3,
             columnWidth=[(1, 90), (2, 160), (3, 80)],
             columnAttach=[(1, "right", 10), (2, "both", 0)],
-            parent=self.parent
+            parent=column_layout
         )
 
         cmds.text(label="Rotate Order:",
@@ -796,10 +798,23 @@ class RotateOrderMenu:
             parent=self.row_layout
         )
 
+        self.custom_order_warning_message = cmds.text(label="Changing rotate order may affect animation accuracy.",
+                                                      align="left",
+                                                      # subtle amber
+                                                      font="smallPlainLabelFont",
+                                                      backgroundColor=(
+                                                          0.4, 0.3, 0.0),
+                                                      visible=False,
+                                                      parent=column_layout)
+
     def __on_change_rotate_order_menu(self, selection):
+        is_custom = (
+            self.MENU_CHOICE_LABEL_TO_ENUM[selection] == self.RotateOrderMenuChoice.CUSTOM)
         cmds.optionMenu(self.custom_rotate_order,
                         edit=True,
-                        visible=(self.MENU_CHOICE_LABEL_TO_ENUM[selection] == self.RotateOrderMenuChoice.CUSTOM))
+                        visible=is_custom)
+        cmds.text(self.custom_order_warning_message,
+                  edit=True, visible=is_custom)
 
     def _create_option_menu(self, menu_name: str, items: list[str], parent: str, visible: bool = True, change_command=None):
         kwargs = {}
