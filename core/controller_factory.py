@@ -262,10 +262,15 @@ def finalize_temp_controller(
     ))
 
     # 3. Copy animation & Bake on all Keys
-    utils_animation.copy_anim_from_parent_to_target_smart(
-        parent=base_controller,
-        target=temp_controller
-    )
+    if context.bake_on_all_frames:
+        utils_animation.copy_anim_from_parent_to_target(
+            parent=base_controller,
+            target=temp_controller)
+    else:
+        utils_animation.copy_anim_from_parent_to_target_smart(
+            parent=base_controller,
+            target=temp_controller
+        )
 
     # 4. Parent constraint: temp controller drives base controller
     cmds.parentConstraint(

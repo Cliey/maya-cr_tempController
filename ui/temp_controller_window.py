@@ -25,10 +25,13 @@ class TempControllerWindowMayaUI:
             build_context_callback=self._build_child_context,
             controller_tree=self.current_controller_tree)
 
+        self.create_controller_frame = constants.FRAME_CREATE_CONTROLLER
         self.button_create_controller = constants.BUTTON_CREATE_CONTROLLER
+        self.bake_all_frames_new_controller = constants.CHECKBOX_BAKE_ALL_FRAMES_NEW_CONTROLLER
         self.controller_mode_radio = constants.RADIO_GROUP_CONTROLLER_MODE
         self.selected_frame = constants.FRAME_SELECTED_CONTROLLER
         self.details_frame = constants.FRAME_CONTROLLER_DETAILS
+        self.general_options_frame = constants.FRAME_GENERAL_OPTIONS
         self.color_creation = None
         self.color_properties = None
         self.shape_menu_creation = constants.SHAPE_MENU_CREATION_NAME
@@ -43,7 +46,7 @@ class TempControllerWindowMayaUI:
             self.__update_ui_nothing_selected()
             return
 
-        cmds.optionMenu(self.shape_menu_creation, edit=True, enable=True)
+        cmds.frameLayout(self.general_options_frame, edit=True, enable=True)
         is_controller = self.tree_view_control.node_is_temporary_controller(
             selected_object)
         is_root_node = self.tree_view_control.node_is_base_controller(
@@ -51,11 +54,10 @@ class TempControllerWindowMayaUI:
         in_tree = is_controller or is_root_node
 
         # Enable create button ONLY if object is NOT in tree
-        cmds.button(
-            self.button_create_controller,
-            edit=True,
-            enable=not in_tree
-        )
+        cmds.frameLayout(self.create_controller_frame,
+                         edit=True,
+                         enable=not in_tree)
+
         if self.color_creation:
             self.color_creation.set_enabled(not in_tree)
 
@@ -73,15 +75,8 @@ class TempControllerWindowMayaUI:
     def __update_ui_nothing_selected(self):
         cmds.frameLayout(self.selected_frame, edit=True, enable=False)
         cmds.frameLayout(self.details_frame, edit=True, enable=False)
-        cmds.button(self.button_create_controller, edit=True, enable=False)
-
-        if self.color_creation:
-            self.color_creation.set_enabled(False)
-
-        if self.color_properties:
-            self.color_properties.set_enabled(False)
-
-        cmds.optionMenu(self.shape_menu_creation, edit=True, enable=False)
+        cmds.frameLayout(self.create_controller_frame, edit=True, enable=False)
+        cmds.frameLayout(self.general_options_frame, edit=True, enable=False)
 
     def _build_child_context(self, parent_node):
         def __controller_ratio(depth):
@@ -144,16 +139,19 @@ class TempControllerWindowMayaUI:
     def show(self):
         """
         New UI
-            [ Create Controller ] [ Reparent (? what should it does?)]
+            [ Create Controller ] [ Reparent (? what should it does?)] [ x ] Bake animation on all frames
+            Color:          (•) [ Predefined ] ( ) [ Color swatch ▼ ]
+
+            --------------------------------
+            GENERAL OPTIONS
             --------------------------------
             Mode:  (•) World Space  ( ) Object Space ( ) Relative Space (Select 2 controllers) ( ) Camera Space
                 For mode -> Can create different type of temp controller -> TempControllerWorldSpace, TempControllerObjectSpace
                 Inherit fro ma common TempController -> just add function for the specific baking/operation for each
-                 = > To check & design 
-            Shape: [ Dropdown ]
-            Color: [ Color swatch ▼ ]
+                 = > To check & design
 
-            [ Create ] (? or Create controller is a button ?)
+            Rotate Order:   [ Dropdown ] [ Custom DropDown ]
+            Shape:          [ Dropdown ]
 
             --------------------------------
             TEMP CONTROLLERS
@@ -206,6 +204,13 @@ class TempControllerWindowMayaUI:
         # CREATE CONTROLLER
         # -------------------------------------------------
         self.__build_create_controller_frame(parent=column_layout)
+
+        cmds.setParent(column_layout)
+
+        # -------------------------------------------------
+        # OPTIONS FRAME
+        # -------------------------------------------------
+        self.__build_options_controller_frame(parent=column_layout)
 
         cmds.setParent(column_layout)
 
@@ -323,7 +328,7 @@ class TempControllerWindowMayaUI:
         # TODO Save Bake option
 
     def __build_create_controller_frame(self, parent):
-        create_frame = cmds.frameLayout(
+        self.create_controller_frame = cmds.frameLayout(
             label="Create Controller",
             collapsable=False,
             marginWidth=6,
@@ -338,12 +343,20 @@ class TempControllerWindowMayaUI:
             columnAlign=(1, "left"),
             columnAttach=[(1, "both", 0), (2, "both", 8),
                           (3, "both", 4), (4, "both", 0)],
-            parent=create_frame
+            parent=self.create_controller_frame
         )
 
         self.button_create_controller = cmds.button(
             self.button_create_controller, label="Create Controller", command=self.__new_controller)
-        cmds.separator(style="none")
+                # Bake on all frame if animation
+        self.bake_all_frames_new_controller = cmds.checkBox(
+            self.bake_all_frames_new_controller,
+            label="Bake animation on all frames",
+            value=False,
+            align="left",
+            statusBarMessage="When checked, if controller has animation, the new temporary controller will be baked on all frames."
+
+        )
         cmds.separator(style="none")
         cmds.separator(style="none")
         """
@@ -353,7 +366,29 @@ class TempControllerWindowMayaUI:
                     statusBarMessage='#TODO - Select controller to reparent first, then the controller you want to parent it to')
         cmds.button(label="More", enable=False)"""
 
-        cmds.setParent(create_frame)
+        option_color_layout = cmds.rowColumnLayout(
+            numberOfColumns=2,
+            columnWidth=[(1, 80), (2, 260)],
+            columnSpacing=[(2, 10)],
+            rowSpacing=(1, 6),
+            parent=self.create_controller_frame
+        )
+
+        cmds.text(label="Color:", align="right")
+        self.color_creation = ColorSelector(
+            name=constants.COLOR_CREATION,
+            parent=option_color_layout)
+
+        cmds.setParent(self.create_controller_frame)
+
+    def __build_options_controller_frame(self, parent):
+        self.general_options_frame = cmds.frameLayout(
+            label="General Options",
+            collapsable=False,
+            marginWidth=6,
+            marginHeight=6,
+            parent=parent
+        )
 
         # Mode options
         cmds.text(label="Mode:", align="left")
@@ -379,17 +414,17 @@ class TempControllerWindowMayaUI:
             columnWidth=[(1, 90), (2, 90), (3, 110), (4, 90)]
         )
 
-        cmds.setParent(create_frame)
+        cmds.setParent(self.general_options_frame)
 
         # Rotate order
         self.rotate_order_menu_creation = RotateOrderMenu(
             name=constants.ROTATE_ORDER_MENU_CREATION_NAME,
-            parent=create_frame)
+            parent=self.general_options_frame)
 
-        cmds.setParent(create_frame)
+        cmds.setParent(self.general_options_frame)
 
         # Shape and color
-        option_shape_color_layout = cmds.rowColumnLayout(
+        option_shape_layout = cmds.rowColumnLayout(
             numberOfColumns=2,
             columnWidth=[(1, 80), (2, 260)],
             columnSpacing=[(2, 10)],
@@ -399,14 +434,9 @@ class TempControllerWindowMayaUI:
         cmds.text(label="Shape:", align="right")
         self.shape_menu_creation = self.create_shape_dropdown_menu(
             shape_menu_name=self.shape_menu_creation,
-            parent=option_shape_color_layout)
+            parent=option_shape_layout)
 
-        cmds.text(label="Color:", align="right")
-        self.color_creation = ColorSelector(
-            name=constants.COLOR_CREATION,
-            parent=option_shape_color_layout)
-
-        cmds.setParent(create_frame)
+        cmds.setParent(self.general_options_frame)
 
     def __build_tree_frame(self, parent):
         temp_frame = cmds.frameLayout(
@@ -620,7 +650,13 @@ class TempControllerWindowMayaUI:
         rotate_order = ro if ro is not None else cmds.getAttr(
             f"{base_controller}.rotateOrder")
 
+        bake_on_all_frames = cmds.checkBox(
+            self.bake_all_frames_new_controller,
+            query=True,
+            value=True)
+
         context = controller_context.TempControllerCreationContext(
+            bake_on_all_frames=bake_on_all_frames,
             mode=controller_mode.ControllerCreationMode(mode_selected),
             rgb_color=self.color_creation.get_color(),
             shape=controller_shapes.SHAPE_LABEL_TO_ENUM[controller_shape_label],
