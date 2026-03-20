@@ -12,3 +12,10 @@ class TempControllerCreationContext:
     size_ratio: float = 1.0
     shape: controller_shapes.ControllerShape = controller_shapes.ControllerShape.ROUNDED_SQUARE
     rotate_order: int = rotation_order.ROTATION_ORDERS["xyz"]
+
+
+@dataclass(frozen=True)
+class BakeOptionContext:
+    smart: bool = False
+    sample_by: int = 1
+    apply_filter: bool = False

@@ -15,12 +15,13 @@ ControllerNodeMap = dict[str, ctrl_node.ControllerNode]
 
 
 class ControlTreeMayaUI:
-    def __init__(self, on_select_update_ui_callback: callable, build_context_callback: callable, controller_tree: dict = {}):
+    def __init__(self, on_select_update_ui_callback: callable, build_context_callback: callable, bake_options_callback: callable, controller_tree: dict = {}):
         self.tree = constants.TREE_NAME
         self.manager = controller_manager.ControllerManager()
         self.active_pivot_tool = None  # keep a reference to prevent Garbage Collector
         self.on_select_update_ui_callback = on_select_update_ui_callback
         self.build_context_callback = build_context_callback
+        self.bake_options_callback = bake_options_callback
 
         self.manager.rebuild_tree(controller_tree)
 

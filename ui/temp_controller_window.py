@@ -8,6 +8,7 @@ import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.hierarchy as utils_hierarchy
 import cr_tempController.utils.naming as utils_naming
 import cr_tempController.utils.rotation_order as rotation_order
+import cr_tempController.ui.bake_options_frame as bake_options_frame
 import logging
 from enum import Enum
 
@@ -23,6 +24,7 @@ class TempControllerWindowMayaUI:
         self.tree_view_control = control_tree.ControlTreeMayaUI(
             on_select_update_ui_callback=self._update_ui_from_selection,
             build_context_callback=self._build_child_context,
+            bake_options_callback=self._build_bake_options_context,
             controller_tree=self.current_controller_tree)
 
         self.create_controller_frame = constants.FRAME_CREATE_CONTROLLER
@@ -37,6 +39,7 @@ class TempControllerWindowMayaUI:
         self.shape_menu_creation = constants.SHAPE_MENU_CREATION_NAME
         self.shape_menu_properties = constants.SHAPE_MENU_PROPERTIES_NAME
         self.rotate_order_menu_creation = None
+        self.bake_options_frame = None
 
     def _update_ui_from_selection(self, selected_object: str | None):
         """
@@ -107,6 +110,9 @@ class TempControllerWindowMayaUI:
             shape=shape,
             rotate_order=rotate_order
         )
+
+    def _build_bake_options_context(self):
+        return self.bake_options_frame.get_context()
 
     def __job_on_selection_changed_callback(self):
         """
@@ -231,7 +237,8 @@ class TempControllerWindowMayaUI:
         # -------------------------------------------------
         # ADVANCED OPTIONS
         # -------------------------------------------------
-        self.__build_advanced_option(parent=column_layout)
+        self.bake_options_frame = bake_options_frame.BakeOptionFrame(
+            parent=column_layout)
 
         cmds.setParent(column_layout)
         # Close button
@@ -578,41 +585,6 @@ class TempControllerWindowMayaUI:
 
         cmds.setParent(self.selected_frame)
 
-    def __build_advanced_option(self, parent):
-        advanced_frame = cmds.frameLayout(
-            label="Bake Options",
-            collapsable=True,
-            collapse=True,
-            marginWidth=6,
-            marginHeight=6,
-            parent=parent
-        )
-
-        cmds.rowColumnLayout(
-            numberOfColumns=2,
-            columnWidth=[(1, 100), (2, 240)],
-            columnSpacing=[(2, 10)],
-            rowSpacing=(1, 6)
-        )
-        cmds.text(label="Bake method:", align="right")
-        cmds.optionMenu()
-        # If Sample By -> Visible option menu "samble_by", else hidden
-        # TODO Create Constant for them once we build it & for loop
-        # + interactive UI for Sample By, Smart etc.
-        cmds.menuItem(label=constants.BAKE_SAMPLE_BY)
-        cmds.menuItem(label=constants.BAKE_SMART)
-
-        cmds.text(label="Sample by:", align="right")
-        cmds.optionMenu()
-        # TODO Create Constant & for loop to build the sample By
-        cmds.menuItem(label="1")
-        cmds.menuItem(label="5")
-        cmds.menuItem(label="10")
-
-        cmds.setParent(advanced_frame)
-
-        cmds.checkBox(label="Apply filter")
-
     def __new_controller(self, _):
         # Check if selected object already has a child
         selection_list = cmds.ls(selection=True, tail=1)
@@ -843,7 +815,7 @@ class RotateOrderMenu:
                                                       visible=False,
                                                       parent=column_layout)
 
-    def __on_change_rotate_order_menu(self, selection):
+    def __on_change_rotate_order_menu(self, selection: str):
         is_custom = (
             self.MENU_CHOICE_LABEL_TO_ENUM[selection] == self.RotateOrderMenuChoice.CUSTOM)
         cmds.optionMenu(self.custom_rotate_order,
