@@ -6,6 +6,7 @@ import cr_tempController.utils.rotation_order as rotation_order
 
 @dataclass(frozen=True)
 class TempControllerCreationContext:
+    bake_on_all_frames: bool = False
     mode: controller_mode.ControllerCreationMode = controller_mode.ControllerCreationMode.OBJECT_SPACE
     rgb_color: list[float] = (1, 0, 1)
     size_ratio: float = 1.0
