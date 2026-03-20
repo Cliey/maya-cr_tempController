@@ -19,3 +19,13 @@ class BakeOptionContext:
     smart: bool = False
     sample_by: int = 1
     apply_filter: bool = False
+
+    def to_bake_kwargs(self) -> dict:
+        if self.smart:
+            return dict(simulation=True,
+                        smart=True)
+
+        return dict(simulation=True,
+                    sampleBy=self.sample_by,
+                    sparseAnimCurveBake=False,
+                    preserveOutsideKeys=True)

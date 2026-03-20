@@ -55,6 +55,7 @@ class BakeOptionFrame:
                   parent=apply_filter_row)
         self.apply_filter = cmds.checkBox(self.apply_filter,
                                           label="",
+                                          value=True,
                                           parent=apply_filter_row)
 
     def __on_change_bake_method_menu(self, selection):
@@ -77,3 +78,12 @@ class BakeOptionFrame:
             sample_by=sample_by,
             apply_filter=apply_filter
         )
+
+    def get_fields_to_save(self):
+        """
+        return:
+            self.bake_method
+            self.sample_by_int
+            self.apply_filter
+        """
+        pass

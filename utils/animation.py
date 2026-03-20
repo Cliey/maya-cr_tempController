@@ -1,12 +1,25 @@
 from dataclasses import dataclass
 import maya.cmds as cmds
 import logging
+import cr_tempController.core.controller_context as controller_context
 import cr_tempController.constants as constants
 
 LOGGER = logging.getLogger(__name__)
 
 
-def bake_with_constraint(driver, driven, time_range, maintain_offset: bool = False, smart: bool = False):
+def bake(driver: str, driven: str, time_range: tuple[int, int], bake_options: controller_context.BakeOptionContext, maintain_offset: bool = False):
+    constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
+    cmds.bakeResults(driven,
+                     time=time_range,
+                     **bake_options.to_bake_kwargs()
+                     )
+
+    if bake_options.apply_filter:
+        cmds.filterCurve(driven)
+    cmds.delete(constraint, constraints=True)
+
+
+def bake_with_constraint(driver: str, driven: str, time_range: tuple[int, int], maintain_offset: bool = False, smart: bool = False):
     if smart:
         bake_with_constraint_smart(driver, driven, time_range, maintain_offset)
     else:
@@ -14,7 +27,7 @@ def bake_with_constraint(driver, driven, time_range, maintain_offset: bool = Fal
             driver, driven, time_range, maintain_offset)
 
 
-def bake_with_constraint_smart(driver, driven, time_range, maintain_offset: bool = False):
+def bake_with_constraint_smart(driver: str, driven: str, time_range: tuple[int, int], maintain_offset: bool = False):
     """Unified baking: constraint + bake + optional filter + cleanup"""
     constraint = cmds.parentConstraint(
         driver, driven, maintainOffset=maintain_offset)
@@ -26,7 +39,7 @@ def bake_with_constraint_smart(driver, driven, time_range, maintain_offset: bool
     cmds.delete(constraint, constraints=True)
 
 
-def bake_with_constraint_all_frames(driver, driven, time_range, maintain_offset: bool = False):
+def bake_with_constraint_all_frames(driver: str, driven: str, time_range: tuple[int, int], maintain_offset: bool = False):
     """Unified baking: constraint + bake + optional filter + cleanup"""
     constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
     cmds.bakeResults(driven,

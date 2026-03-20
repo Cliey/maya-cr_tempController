@@ -24,7 +24,7 @@ class TempControllerWindowMayaUI:
         self.tree_view_control = control_tree.ControlTreeMayaUI(
             on_select_update_ui_callback=self._update_ui_from_selection,
             build_context_callback=self._build_child_context,
-            bake_options_callback=self._build_bake_options_context,
+            get_bake_options_callback=self._build_bake_options_context,
             controller_tree=self.current_controller_tree)
 
         self.create_controller_frame = constants.FRAME_CREATE_CONTROLLER

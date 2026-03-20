@@ -15,13 +15,13 @@ ControllerNodeMap = dict[str, ctrl_node.ControllerNode]
 
 
 class ControlTreeMayaUI:
-    def __init__(self, on_select_update_ui_callback: callable, build_context_callback: callable, bake_options_callback: callable, controller_tree: dict = {}):
+    def __init__(self, on_select_update_ui_callback: callable, build_context_callback: callable, get_bake_options_callback: callable, controller_tree: dict = {}):
         self.tree = constants.TREE_NAME
         self.manager = controller_manager.ControllerManager()
         self.active_pivot_tool = None  # keep a reference to prevent Garbage Collector
         self.on_select_update_ui_callback = on_select_update_ui_callback
         self.build_context_callback = build_context_callback
-        self.bake_options_callback = bake_options_callback
+        self.get_bake_options_callback = get_bake_options_callback
 
         self.manager.rebuild_tree(controller_tree)
 
@@ -369,9 +369,11 @@ class ControlTreeMayaUI:
         return True
 
     def __bake_and_delete(self, node: ctrl_node.ControllerNode):
+        bake_options = self.get_bake_options_callback()
        # If parent is base constroller, can bake it direct
         if self.manager.node_is_base_controller(node.parent.name):
-            baking_service.bake_temporary_controller_to_base(node)
+            baking_service.bake_temporary_controller_to_base(
+                node, bake_options)
             # Remove all from tree
             self.__delete_root_node(node)
         else:
@@ -382,11 +384,13 @@ class ControlTreeMayaUI:
                     NOT OK if parent -> child1/child2
                     OK if parent -> child -> child -> ...
                 """
-                baking_service.bake_temporary_controller_to_parent(child)
+                baking_service.bake_temporary_controller_to_parent(
+                    child, bake_options)
                 self._remove_controller_from_model(child)
 
             # 2. Bake the current node
-            baking_service.bake_temporary_controller_to_parent(node)
+            baking_service.bake_temporary_controller_to_parent(
+                node, bake_options)
 
             self._remove_controller_from_model(node)
 
