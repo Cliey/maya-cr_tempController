@@ -54,17 +54,17 @@ def _transfer_animation_child_to_parent(child: ctrl_node.ControllerNode, time_ra
     tmp_locator = cmds.spaceLocator(name=f"{parent_name}_TMP_LOC")[0]
     try:
 
-        utils_animation.bake(driver=child.name,
-                             driven=tmp_locator,
-                             time_range=time_range,
-                             maintain_offset=False,
-                             bake_options=bake_options)
+        utils_animation.bake_with_options(driver=child.name,
+                                          driven=tmp_locator,
+                                          time_range=time_range,
+                                          maintain_offset=False,
+                                          bake_options=bake_options)
         cmds.delete(child.name)
-        utils_animation.bake(driver=tmp_locator,
-                             driven=parent_name,
-                             time_range=time_range,
-                             maintain_offset=False,
-                             bake_options=bake_options)
+        utils_animation.bake_with_options(driver=tmp_locator,
+                                          driven=parent_name,
+                                          time_range=time_range,
+                                          maintain_offset=False,
+                                          bake_options=bake_options)
 
     finally:
         cmds.delete(tmp_locator)
