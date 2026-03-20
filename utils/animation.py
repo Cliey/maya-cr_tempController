@@ -1,20 +1,24 @@
-from dataclasses import dataclass
 import maya.cmds as cmds
 import logging
+import cr_tempController.core.controller_context as controller_context
 import cr_tempController.constants as constants
 
 LOGGER = logging.getLogger(__name__)
 
 
-def bake_with_constraint(driver, driven, time_range, maintain_offset: bool = False, smart: bool = False):
-    if smart:
-        bake_with_constraint_smart(driver, driven, time_range, maintain_offset)
-    else:
-        bake_with_constraint_all_frames(
-            driver, driven, time_range, maintain_offset)
+def bake_with_options(driver: str, driven: str, time_range: tuple[int, int], bake_options: controller_context.BakeOptionContext, maintain_offset: bool = False):
+    constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
+    cmds.bakeResults(driven,
+                     time=time_range,
+                     **bake_options.to_bake_kwargs()
+                     )
+
+    if bake_options.apply_filter:
+        cmds.filterCurve(driven)
+    cmds.delete(constraint, constraints=True)
 
 
-def bake_with_constraint_smart(driver, driven, time_range, maintain_offset: bool = False):
+def _bake_smart(driver: str, driven: str, time_range: tuple[int, int], maintain_offset: bool = False):
     """Unified baking: constraint + bake + optional filter + cleanup"""
     constraint = cmds.parentConstraint(
         driver, driven, maintainOffset=maintain_offset)
@@ -26,14 +30,13 @@ def bake_with_constraint_smart(driver, driven, time_range, maintain_offset: bool
     cmds.delete(constraint, constraints=True)
 
 
-def bake_with_constraint_all_frames(driver, driven, time_range, maintain_offset: bool = False):
+def _bake_all_frames(driver: str, driven: str, time_range: tuple[int, int], maintain_offset: bool = False):
     """Unified baking: constraint + bake + optional filter + cleanup"""
     constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
     cmds.bakeResults(driven,
                      time=time_range,
                      simulation=True,
                      sampleBy=1.0,
-                     sparseAnimCurveBake=True,
                      preserveOutsideKeys=True)
 
     cmds.filterCurve(driven)
@@ -63,57 +66,23 @@ def _get_parent_first_last_keyframe(parent):
     return int(first_key), int(last_key)
 
 
-def copy_anim_from_parent_to_target(parent: str, target: str, maintain_offset: bool = False):
-    """
-    Copy animation of the **parent controller** to the **target**
-    Parent to Target
-
-    :param parent: Parent controller to copy the animation from
-    :type parent: str
-    :param target: Target controller to copy the animation to
-    :type target: str
-    :param maintain_offset: Maintain offset boolean of the target from the parent. Default is **False**
-    :type maintain_offset: bool
-    """
-    LOGGER.debug(f"Target = {target}; parent = {parent}")
+def copy_anim_from_parent_to_target(parent: str, target: str, maintain_offset: bool = False, smart: bool = False):
+    LOGGER.debug(f"Target = {target}; parent = {parent}; smart = {smart}")
     if not cmds.keyframe(parent, q=True, keyframeCount=True):
         return
     first_key, last_key = _get_parent_first_last_keyframe(parent)
     LOGGER.debug(f"First_key = {first_key}; last_key = {last_key}")
 
-    bake_with_constraint(driver=parent,
+    if smart:
+        _bake_smart(driver=parent,
+                    driven=target,
+                    time_range=(first_key, last_key),
+                    maintain_offset=maintain_offset)
+    else:
+        _bake_all_frames(driver=parent,
                          driven=target,
                          time_range=(first_key, last_key),
-                         maintain_offset=maintain_offset,
-                         smart=False)
-
-
-def copy_anim_from_parent_to_target_smart(parent: str, target: str, maintain_offset: bool = False):
-    """
-    Copy animation of the **parent controller** to the **target**
-    Parent to Target
-
-    :param parent: Parent controller to copy the animation from
-    :type parent: str
-    :param target: Target controller to copy the animation to
-    :type target: str
-    :param maintain_offset: Maintain offset boolean of the target from the parent. Default is **False**
-    :type maintain_offset: bool
-    """
-    LOGGER.debug(f"Target = {target}; parent = {parent}")
-    if not cmds.keyframe(parent, q=True, keyframeCount=True):
-        return
-    first_key, last_key = _get_parent_first_last_keyframe(parent)
-    LOGGER.debug(f"First_key = {first_key}; last_key = {last_key}")
-
-    LOGGER.info(
-        f"copy_anim_from_parent_to_target_smart for {parent} to {target}")
-
-    bake_with_constraint(driver=parent,
-                         driven=target,
-                         time_range=(first_key, last_key),
-                         maintain_offset=maintain_offset,
-                         smart=True)
+                         maintain_offset=maintain_offset)
 
 
 def lock_transform_attribute(node: str):

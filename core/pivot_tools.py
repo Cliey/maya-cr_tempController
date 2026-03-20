@@ -226,7 +226,8 @@ class PivotTool:
             utils_animation.copy_anim_from_parent_to_target(
                 child,
                 locator_animation_saved,
-                maintain_offset=False
+                maintain_offset=False,
+                smart=False
             )
             self.__link_saved_anim(child, locator_animation_saved)
 
@@ -250,7 +251,8 @@ class PivotTool:
         utils_animation.copy_anim_from_parent_to_target(
             parent=self.controller,
             target=duplicate_controller,
-            maintain_offset=True
+            maintain_offset=True,
+            smart=False
         )
 
     def __replace_controller_in_hierarchy(self, duplicate_controller: str):
@@ -332,7 +334,8 @@ class PivotTool:
             utils_animation.copy_anim_from_parent_to_target(
                 parent=locator,
                 target=child,
-                maintain_offset=False
+                maintain_offset=False,
+                smart=False
             )
 
             cmds.delete(locator)

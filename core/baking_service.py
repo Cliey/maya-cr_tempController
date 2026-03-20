@@ -1,5 +1,6 @@
 import maya.cmds as cmds
 import cr_tempController.core.controller_node as ctrl_node
+import cr_tempController.core.controller_context as controller_context
 import cr_tempController.utils.animation as utils_animation
 import cr_tempController.utils.nodes as utils_nodes
 import cr_tempController.utils.context as utils_context
@@ -8,7 +9,7 @@ import logging
 LOGGER = logging.getLogger(__name__)
 
 
-def bake_temporary_controller_to_base(node: ctrl_node.ControllerNode):
+def bake_temporary_controller_to_base(node: ctrl_node.ControllerNode, bake_options: controller_context.BakeOptionContext):
     """
     Bake the temporary controller (*node*) to the base controller (its parent)
 
@@ -22,18 +23,15 @@ def bake_temporary_controller_to_base(node: ctrl_node.ControllerNode):
     time_range = _get_first_last_keyframe(parent_node_name, node_name)
 
     # destinationLayer = "LayerName if bake on new layer"
-    cmds.bakeResults(
-        parent_node_name,
-        time=time_range,
-        simulation=True,
-        sparseAnimCurveBake=True,
-        preserveOutsideKeys=True,
-        sampleBy=1.0
-    )
-    cmds.filterCurve(parent_node_name)
+    cmds.bakeResults(parent_node_name,
+                     time=time_range,
+                     **bake_options.to_bake_kwargs()
+                     )
+    if bake_options.apply_filter:
+        cmds.filterCurve(parent_node_name)
 
 
-def bake_temporary_controller_to_parent(node: ctrl_node.ControllerNode):
+def bake_temporary_controller_to_parent(node: ctrl_node.ControllerNode, bake_options: controller_context.BakeOptionContext):
     time_range = _get_first_last_keyframe(
         node.parent.name, node.name)
 
@@ -42,7 +40,7 @@ def bake_temporary_controller_to_parent(node: ctrl_node.ControllerNode):
     # Save matrix of base controller before transfer animation to retrieve the offset after
     base_matrix = preserve_world_transform(base_controller)
 
-    _transfer_animation_child_to_parent(node, time_range)
+    _transfer_animation_child_to_parent(node, time_range, bake_options)
 
     LOGGER.debug(
         f"Rebuild constraint {base_controller} -> {node_parent_name}")
@@ -51,21 +49,22 @@ def bake_temporary_controller_to_parent(node: ctrl_node.ControllerNode):
     cmds.parentConstraint(node_parent_name, base_controller, mo=True)
 
 
-def _transfer_animation_child_to_parent(child: ctrl_node.ControllerNode, time_range):
+def _transfer_animation_child_to_parent(child: ctrl_node.ControllerNode, time_range: tuple[int, int], bake_options: controller_context.BakeOptionContext):
     parent_name = child.parent.name
     tmp_locator = cmds.spaceLocator(name=f"{parent_name}_TMP_LOC")[0]
     try:
-        utils_animation.bake_with_constraint(driver=child.name,
-                                             driven=tmp_locator,
-                                             time_range=time_range,
-                                             maintain_offset=False,
-                                             smart=False)
+
+        utils_animation.bake_with_options(driver=child.name,
+                                          driven=tmp_locator,
+                                          time_range=time_range,
+                                          maintain_offset=False,
+                                          bake_options=bake_options)
         cmds.delete(child.name)
-        utils_animation.bake_with_constraint(driver=tmp_locator,
-                                             driven=parent_name,
-                                             time_range=time_range,
-                                             maintain_offset=False,
-                                             smart=False)
+        utils_animation.bake_with_options(driver=tmp_locator,
+                                          driven=parent_name,
+                                          time_range=time_range,
+                                          maintain_offset=False,
+                                          bake_options=bake_options)
 
     finally:
         cmds.delete(tmp_locator)
