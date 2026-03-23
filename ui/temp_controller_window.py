@@ -575,6 +575,7 @@ class TempControllerWindowMayaUI:
             marginWidth=6,
             marginHeight=6,
             enable=False,
+            manage=False,
             parent=self.selected_frame
         )
 
