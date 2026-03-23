@@ -17,7 +17,7 @@ class BakeOptionFrame:
         bake_options_frame = cmds.frameLayout(
             label="Bake Options",
             collapsable=True,
-            collapse=True,
+            collapse=False,
             marginWidth=6,
             marginHeight=6,
             parent=self.parent
@@ -36,13 +36,13 @@ class BakeOptionFrame:
         self.bake_method = cmds.optionMenu(self.bake_method,
                                            changeCommand=self.__on_change_bake_method_menu,
                                            parent=bake_method_row)
-        cmds.menuItem(label=constants.BAKE_SMART)
         cmds.menuItem(label=constants.BAKE_SAMPLE_BY)
+        cmds.menuItem(label=constants.BAKE_SMART)
         self.sample_by_int = cmds.intField(self.sample_by_int,
                                            minValue=1,
                                            value=1,
                                            step=1,
-                                           manage=False,
+                                           manage=not self.is_bake_method_smart(),
                                            parent=bake_method_row)
 
         # Apply filter row
@@ -62,9 +62,12 @@ class BakeOptionFrame:
         is_sample_by = selection == constants.BAKE_SAMPLE_BY
         cmds.intField(self.sample_by_int, edit=True, manage=is_sample_by)
 
-    def get_context(self):
-        smart_bake = cmds.optionMenu(
+    def is_bake_method_smart(self):
+        return cmds.optionMenu(
             self.bake_method, query=True, value=True) == constants.BAKE_SMART
+
+    def get_context(self):
+        smart_bake = self.is_bake_method_smart()
         sample_by_field = cmds.intField(self.sample_by_int,
                                         query=True,
                                         value=True)
