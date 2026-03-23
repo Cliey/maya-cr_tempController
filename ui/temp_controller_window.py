@@ -198,6 +198,7 @@ class TempControllerWindowMayaUI:
             self.window,
             title=constants.TOOL_WINDOW_TITLE,
             widthHeight=(310, 650),
+            maximizeButton=False,
             sizeable=True,
             closeCommand=self.__on_window_close
         )
