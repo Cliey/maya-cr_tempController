@@ -295,6 +295,22 @@ class TempControllerWindowMayaUI:
             b = cmds.optionVar(q=constants.LAST_CUSTOM_COLOR_B) / 255
             self.color_creation.change_custom_color(r, g, b)
 
+        if (cmds.optionVar(exists=constants.BAKE_OPTIONS_FRAME_COLLAPSE_STATE) and
+            cmds.optionVar(exists=constants.BAKE_OPTIONS_BAKE_METHOD) and
+            cmds.optionVar(exists=constants.BAKE_OPTIONS_SAMPLE_BY) and
+                cmds.optionVar(exists=constants.BAKE_OPTIONS_APPLY_FILTER)):
+            frame_collapsed = cmds.optionVar(
+                q=constants.BAKE_OPTIONS_FRAME_COLLAPSE_STATE)
+            bake_method = cmds.optionVar(q=constants.BAKE_OPTIONS_BAKE_METHOD)
+            sample_by = cmds.optionVar(q=constants.BAKE_OPTIONS_SAMPLE_BY)
+            apply_filter = cmds.optionVar(
+                q=constants.BAKE_OPTIONS_APPLY_FILTER)
+
+            self.bake_options_frame.init_fields_from_option_var(frame_collapsed=frame_collapsed,
+                                                                bake_method=bake_method,
+                                                                sample_by=sample_by,
+                                                                apply_filter=apply_filter)
+
     def __on_window_close(self, *args):
         if self.tree_view_control:
             # TODO -> close Pivot Tool if active
@@ -332,7 +348,14 @@ class TempControllerWindowMayaUI:
             cmds.optionVar(
                 fv=(constants.LAST_CUSTOM_COLOR_B, rgb_color[2] * 255))
 
-        # TODO Save Bake option
+        # Save Bake options
+        frame_collapsed, bake_method, sample_by, apply_filter = self.bake_options_frame.get_fields_to_save()
+
+        cmds.optionVar(
+            iv=(constants.BAKE_OPTIONS_FRAME_COLLAPSE_STATE, frame_collapsed))
+        cmds.optionVar(sv=(constants.BAKE_OPTIONS_BAKE_METHOD, bake_method))
+        cmds.optionVar(iv=(constants.BAKE_OPTIONS_SAMPLE_BY, sample_by))
+        cmds.optionVar(iv=(constants.BAKE_OPTIONS_APPLY_FILTER, apply_filter))
 
     def __build_create_controller_frame(self, parent):
         self.create_controller_frame = cmds.frameLayout(
