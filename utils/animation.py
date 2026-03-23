@@ -1,7 +1,11 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
 import maya.cmds as cmds
 import logging
-import cr_tempController.core.controller_context as controller_context
 import cr_tempController.constants as constants
+
+if TYPE_CHECKING:
+    import cr_tempController.core.controller_context as controller_context
 
 LOGGER = logging.getLogger(__name__)
 
