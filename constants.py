@@ -75,4 +75,8 @@ LAST_CUSTOM_COLOR_R = "cr_TempController.CustomRGB_R"
 LAST_CUSTOM_COLOR_G = "cr_TempController.CustomRGB_G"
 LAST_CUSTOM_COLOR_B = "cr_TempController.CustomRGB_B"
 
+BAKE_OPTIONS_FRAME_COLLAPSE_STATE = "cr_TempController.bakeOptions_frameCollapseState"
+BAKE_OPTIONS_BAKE_METHOD = "cr_TempController.bakeOptions_bakeMethod"
+BAKE_OPTIONS_SAMPLE_BY = "cr_TempController.bakeOptions_sampleBy"
+BAKE_OPTIONS_APPLY_FILTER = "cr_TempController.bakeOptions_applyFilter"
 SKIP_NURBS_WARNING = "cr_TempController.skipNurbsWarning"
