@@ -545,6 +545,7 @@ class TempControllerWindowMayaUI:
         self.tree_view_control.rebuild_tree(
             controller_tree=new_controller_tree)
         self.tree_view_control.rebuild_tree_view()
+        self.__job_on_selection_changed_callback()
 
     def __build_selected_controller(self, parent):
         self.selected_frame = cmds.frameLayout(
