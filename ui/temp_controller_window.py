@@ -10,6 +10,7 @@ import cr_tempController.utils.naming as utils_naming
 import cr_tempController.utils.nodes as utils_nodes
 import cr_tempController.ui.components.bake_options_frame as bake_options_frame
 import cr_tempController.ui.components.color_selector as color_selector
+import cr_tempController.ui.components.menu_bar_layout as menu_bar_layout
 import cr_tempController.ui.components.rotate_order_menu as rotate_order_menu
 import logging
 
@@ -230,6 +231,11 @@ class TempControllerWindowMayaUI:
             closeCommand=self.__on_window_close
         )
 
+        # -------------------------------------------------
+        # MENU BAR
+        # -------------------------------------------------
+        self.__build_menu_bar()
+
         column_layout = cmds.columnLayout(
             adjustableColumn=True, rowSpacing=8, parent=self.window)
 
@@ -385,6 +391,9 @@ class TempControllerWindowMayaUI:
         cmds.optionVar(sv=(constants.BAKE_OPTIONS_BAKE_METHOD, bake_method))
         cmds.optionVar(iv=(constants.BAKE_OPTIONS_SAMPLE_BY, sample_by))
         cmds.optionVar(iv=(constants.BAKE_OPTIONS_APPLY_FILTER, apply_filter))
+
+    def __build_menu_bar(self):
+        menu_bar_layout.MenuBarLayout(window=self.window)
 
     def __build_create_controller_frame(self, parent):
         self.create_controller_frame = cmds.frameLayout(

@@ -8,6 +8,7 @@ logging.basicConfig(
 # CONSTANT
 TOOL_WINDOW_NAME = "tempControlMayaUI"
 TOOL_WINDOW_TITLE = "Temp Controller Tool"
+VERSION = "0.2.0"  # MAJOR.MINOR.PATCH
 
 TEMP_PIVOT_GROUP = 'cr_TempControls'
 TEMP_PIVOT_GROUP_COLOR = (0.93, 0.44, 1)
@@ -31,7 +32,6 @@ BUTTON_CREATE_CONTROLLER = "buttonCreateController"
 CHECKBOX_BAKE_ALL_FRAMES_NEW_CONTROLLER = "checkboxBakeOnAllFramesNewController"
 RADIO_GROUP_CONTROLLER_MODE = "radioGroupControllerMode"
 FRAME_SELECTED_CONTROLLER = "frameSelectedController"
-CHECKBOX_DRIVER_ENABLE = "checkboxDriverEnable"
 FRAME_CONTROLLER_DETAILS = "frameControllerDetails"
 FRAME_GENERAL_OPTIONS = "frameGeneralOptions"
 SHAPE_MENU_CREATION_NAME = "optionShapeMenu"
