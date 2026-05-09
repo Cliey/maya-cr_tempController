@@ -14,6 +14,7 @@ TEMP_PIVOT_GROUP_COLOR = (0.93, 0.44, 1)
 DATA_SOURCE_NODE = 'sourceNode'
 ATTRIBUTE_SAVED_ANIM = 'cr_savedAnim'
 ATTRIBUTE_SOURCE_CTRL = 'cr_sourceCtrl'
+PARENT_CONSTRAINT_NAME = '{name}_TmpController'
 
 
 # SUFFIXE

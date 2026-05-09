@@ -11,8 +11,6 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-ControllerNodeMap = dict[str, ctrl_node.ControllerNode]
-
 
 class ControlTreeMayaUI:
     def __init__(self, on_select_update_ui_callback: callable, build_context_callback: callable, get_bake_options_callback: callable, controller_tree: dict = {}):
@@ -537,7 +535,9 @@ class ControlTreeMayaUI:
         cmds.parentConstraint(
             node_parent_name,
             base_controller_name,
-            mo=True
+            mo=True,
+            name=constants.PARENT_CONSTRAINT_NAME.replace(
+                "{name}", base_controller_name)
         )[0]
         self._remove_controller_from_model(node)
 

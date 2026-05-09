@@ -276,7 +276,9 @@ def finalize_temp_controller(
     # 4. Parent constraint: temp controller drives base controller
     cmds.parentConstraint(
         temp_controller,
-        base_controller
+        base_controller,
+        name=constants.PARENT_CONSTRAINT_NAME.replace(
+            "{name}", base_controller)
     )
 
     return data_node

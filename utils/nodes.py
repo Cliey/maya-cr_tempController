@@ -149,12 +149,16 @@ def reconnect_constraints(child_controller: str) -> None:
     cmds.parentConstraint(
         child_controller,
         source_controller,
-        maintainOffset=True
+        maintainOffset=True,
+        name=constants.PARENT_CONSTRAINT_NAME.replace(
+            "{name}", source_controller)
     )
 
     cmds.parentConstraint(
         parent_group,
         source_controller,
         edit=True,
-        remove=True
+        remove=True,
+        name=constants.PARENT_CONSTRAINT_NAME.replace(
+            "{name}", source_controller)
     )

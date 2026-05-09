@@ -297,7 +297,9 @@ class PivotTool:
             cmds.parentConstraint(
                 duplicate_controller,
                 base_controller,
-                maintainOffset=True
+                maintainOffset=True,
+                name=constants.PARENT_CONSTRAINT_NAME.replace(
+                    "{name}", base_controller)
             )
 
         cmds.delete(self.controller)
