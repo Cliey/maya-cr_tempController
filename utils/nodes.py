@@ -4,6 +4,8 @@ import cr_tempController.constants as constants
 import logging
 import cr_tempController.utils.logging as utils_logging
 
+import re
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -162,3 +164,34 @@ def reconnect_constraints(child_controller: str) -> None:
         name=constants.PARENT_CONSTRAINT_NAME.replace(
             "{name}", source_controller)
     )
+
+
+def find_blend_parent_attr(base_controller_name: str, target: str) -> str | None:
+    """                                                                   
+    Find the blendParent attribute on a constrained object that corresponds to a specific constraint target.
+
+    Maya does not expose blendParent via DG connections, so the index is inferred
+    from the trailing number on the parentConstraint node name (e.g.
+    ``_parentConstraint2`` → ``blendParent2``).
+
+    :param base_controller_name: The constrained object to inspect.
+    :type base_controller_name: str
+
+    :param target: The constraint target name used to identify the right parentConstraint node.
+    :type target: str
+
+    :return: The blendParent attribute name (e.g. ``blendParent1``), or **None** if not found.
+    :rtype: str | None
+    """
+    constraint_nodes = cmds.listRelatives(
+        base_controller_name, type="parentConstraint"
+    ) or []
+
+    for node in constraint_nodes:
+        targets = cmds.parentConstraint(node, q=True, targetList=True) or []
+        if target in targets:
+            match = re.search(r'(\d+)$', node)
+            index = match.group(1) if match else "1"
+            return f"blendParent{index}"
+
+    return None
