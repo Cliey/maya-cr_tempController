@@ -7,6 +7,7 @@ import cr_tempController.core.controller_mode as controller_mode
 import cr_tempController.utils.controller_shapes as controller_shapes
 import cr_tempController.utils.hierarchy as utils_hierarchy
 import cr_tempController.utils.naming as utils_naming
+import cr_tempController.utils.nodes as utils_nodes
 import cr_tempController.utils.rotation_order as rotation_order
 import cr_tempController.ui.bake_options_frame as bake_options_frame
 import logging
@@ -32,6 +33,7 @@ class TempControllerWindowMayaUI:
         self.bake_all_frames_new_controller = constants.CHECKBOX_BAKE_ALL_FRAMES_NEW_CONTROLLER
         self.controller_mode_radio = constants.RADIO_GROUP_CONTROLLER_MODE
         self.selected_frame = constants.FRAME_SELECTED_CONTROLLER
+        self.driver_enable_checkbox = constants.CHECKBOX_DRIVER_ENABLE
         self.details_frame = constants.FRAME_CONTROLLER_DETAILS
         self.general_options_frame = constants.FRAME_GENERAL_OPTIONS
         self.color_creation = None
@@ -40,6 +42,25 @@ class TempControllerWindowMayaUI:
         self.shape_menu_properties = constants.SHAPE_MENU_PROPERTIES_NAME
         self.rotate_order_menu_creation = None
         self.bake_options_frame = None
+
+    def __reset_checkbox_value(self):
+        cmds.checkBox(self.driver_enable_checkbox,
+                      edit=True,
+                      value=False,
+                      label="Driver Enabled",
+                      statusBarMessage="")
+
+    def __update_checkbox_state(self, selected_object: str, in_tree: bool, enable_checkbox: bool):
+        if not in_tree or not enable_checkbox:
+            self.__reset_checkbox_value()
+        elif enable_checkbox:
+            base_controller = utils_nodes.get_base_controller(selected_object)
+            cmds.checkBox(self.driver_enable_checkbox,
+                          edit=True,
+                          value=self.tree_view_control.get_base_controller_constraint_state(
+                              selected_object),
+                          label=f"Driver Enabled ({base_controller})",
+                          statusBarMessage=f"Turn On/Off Temporary Controller for {base_controller}")
 
     def _update_ui_from_selection(self, selected_object: str | None):
         """
@@ -67,6 +88,10 @@ class TempControllerWindowMayaUI:
         # Details only if object exists in tree AND is not a base controller
         enable_details = in_tree and not is_root_node
         cmds.frameLayout(self.selected_frame, edit=True, enable=enable_details)
+        self.__update_checkbox_state(selected_object=selected_object,
+                                     in_tree=in_tree,
+                                     enable_checkbox=enable_details)
+
         cmds.frameLayout(self.details_frame, edit=True, enable=enable_details)
 
         """
@@ -79,6 +104,8 @@ class TempControllerWindowMayaUI:
         cmds.frameLayout(self.selected_frame, edit=True, enable=False)
         cmds.frameLayout(self.details_frame, edit=True, enable=False)
         cmds.frameLayout(self.create_controller_frame, edit=True, enable=False)
+        self.__reset_checkbox_value()
+
         cmds.frameLayout(self.general_options_frame, edit=True, enable=False)
 
     def _build_child_context(self, parent_node):
@@ -518,6 +545,7 @@ class TempControllerWindowMayaUI:
         self.tree_view_control.rebuild_tree(
             controller_tree=new_controller_tree)
         self.tree_view_control.rebuild_tree_view()
+        self.__job_on_selection_changed_callback()
 
     def __build_selected_controller(self, parent):
         self.selected_frame = cmds.frameLayout(
@@ -555,11 +583,12 @@ class TempControllerWindowMayaUI:
             columnAttach=[(1, "left", 0), (2, "both", 6), (3, "both", 0)]
         )
         cmds.text(label="Active:", align="left")
-        cmds.checkBox(
+        self.driver_enable_checkbox = cmds.checkBox(
+            self.driver_enable_checkbox,
             label="Driver Enabled",
             value=True,
-            enable=False,
-            align="left"
+            align="left",
+            changeCommand=self.tree_view_control.update_driver_current_selection
         )
         cmds.separator(style="none")
 

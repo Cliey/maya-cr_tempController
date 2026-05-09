@@ -11,7 +11,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 def bake_with_options(driver: str, driven: str, time_range: tuple[int, int], bake_options: controller_context.BakeOptionContext, maintain_offset: bool = False):
-    constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
+    constraint = cmds.parentConstraint(driver,
+                                       driven,
+                                       mo=maintain_offset,
+                                       name=constants.PARENT_CONSTRAINT_NAME.replace(
+                                           "{name}", driven))
     cmds.bakeResults(driven,
                      time=time_range,
                      **bake_options.to_bake_kwargs()
@@ -25,7 +29,11 @@ def bake_with_options(driver: str, driven: str, time_range: tuple[int, int], bak
 def _bake_smart(driver: str, driven: str, time_range: tuple[int, int], maintain_offset: bool = False):
     """Unified baking: constraint + bake + optional filter + cleanup"""
     constraint = cmds.parentConstraint(
-        driver, driven, maintainOffset=maintain_offset)
+        driver,
+        driven,
+        maintainOffset=maintain_offset,
+        name=constants.PARENT_CONSTRAINT_NAME.replace(
+            "{name}", driven))
     cmds.bakeResults(driven,
                      time=time_range,
                      simulation=True,
@@ -36,7 +44,11 @@ def _bake_smart(driver: str, driven: str, time_range: tuple[int, int], maintain_
 
 def _bake_all_frames(driver: str, driven: str, time_range: tuple[int, int], maintain_offset: bool = False):
     """Unified baking: constraint + bake + optional filter + cleanup"""
-    constraint = cmds.parentConstraint(driver, driven, mo=maintain_offset)
+    constraint = cmds.parentConstraint(driver,
+                                       driven,
+                                       mo=maintain_offset,
+                                       name=constants.PARENT_CONSTRAINT_NAME.replace(
+                                           "{name}", driven))
     cmds.bakeResults(driven,
                      time=time_range,
                      simulation=True,

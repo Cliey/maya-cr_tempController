@@ -4,6 +4,7 @@ import cr_tempController.core.controller_context as controller_context
 import cr_tempController.utils.animation as utils_animation
 import cr_tempController.utils.nodes as utils_nodes
 import cr_tempController.utils.context as utils_context
+import cr_tempController.constants as constants
 import logging
 
 LOGGER = logging.getLogger(__name__)
@@ -46,7 +47,11 @@ def bake_temporary_controller_to_parent(node: ctrl_node.ControllerNode, bake_opt
         f"Rebuild constraint {base_controller} -> {node_parent_name}")
 
     restore_matrix_no_autokey(base_controller, base_matrix)
-    cmds.parentConstraint(node_parent_name, base_controller, mo=True)
+    cmds.parentConstraint(node_parent_name,
+                          base_controller,
+                          mo=True,
+                          name=constants.PARENT_CONSTRAINT_NAME.replace(
+                              "{name}", base_controller))
 
 
 def _transfer_animation_child_to_parent(child: ctrl_node.ControllerNode, time_range: tuple[int, int], bake_options: controller_context.BakeOptionContext):

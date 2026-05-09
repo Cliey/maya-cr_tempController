@@ -11,8 +11,6 @@ import logging
 
 LOGGER = logging.getLogger(__name__)
 
-ControllerNodeMap = dict[str, ctrl_node.ControllerNode]
-
 
 class ControlTreeMayaUI:
     def __init__(self, on_select_update_ui_callback: callable, build_context_callback: callable, get_bake_options_callback: callable, controller_tree: dict = {}):
@@ -537,7 +535,9 @@ class ControlTreeMayaUI:
         cmds.parentConstraint(
             node_parent_name,
             base_controller_name,
-            mo=True
+            mo=True,
+            name=constants.PARENT_CONSTRAINT_NAME.replace(
+                "{name}", base_controller_name)
         )[0]
         self._remove_controller_from_model(node)
 
@@ -562,3 +562,59 @@ class ControlTreeMayaUI:
 
     def node_is_base_controller(self, node):
         return self.manager.node_is_base_controller(node)
+
+    def update_driver_current_selection(self, value: bool):
+        with utils_context.UndoChunk():
+            current_list = cmds.treeView(
+                self.tree, q=True, selectItem=True) or []
+            if not current_list:
+                return
+
+            base_controller_name, target = self.__find_constraint_target(
+                current_list[0])
+
+            if not target:
+                return
+
+            blend_attr = utils_nodes.find_blend_parent_attr(base_controller_name=base_controller_name,
+                                                            target=target)
+            if blend_attr:
+                cmds.setAttr(f"{base_controller_name}.{blend_attr}",
+                             1 if value else 0)
+
+    def get_base_controller_constraint_state(self, controller_name: str) -> int:
+        base_controller_name, target = self.__find_constraint_target(
+            controller_name)
+        if target is None:
+            return 0
+
+        blend_attr = utils_nodes.find_blend_parent_attr(
+            base_controller_name, target)
+        if blend_attr is None:
+            return 0
+
+        return int(cmds.getAttr(f"{base_controller_name}.{blend_attr}"))
+
+    def __find_constraint_target(self, controller_name: str) -> tuple[str, str | None]:
+        base_controller_name = utils_nodes.get_base_controller(controller_name)
+        if not base_controller_name:
+            return controller_name, None
+
+        constraint_target_list = cmds.parentConstraint(base_controller_name,
+                                                       q=True,
+                                                       targetList=True) or []
+        current_node = self.manager.get_controller_node_from_controller_map(
+            controller_name)
+        last_child = self.__get_last_child(current_node)
+        matching = next(
+            (t for t in constraint_target_list if last_child.name in t), None)
+        return base_controller_name, matching
+
+    def __get_last_child(self, node: ctrl_node.ControllerNode):
+        """
+        #TODO Need to rework it
+        For multiple temp controller on 1 controller at the same depth
+        """
+        if node.children:
+            return self.__get_last_child(node.children[0])
+        return node

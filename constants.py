@@ -14,6 +14,7 @@ TEMP_PIVOT_GROUP_COLOR = (0.93, 0.44, 1)
 DATA_SOURCE_NODE = 'sourceNode'
 ATTRIBUTE_SAVED_ANIM = 'cr_savedAnim'
 ATTRIBUTE_SOURCE_CTRL = 'cr_sourceCtrl'
+PARENT_CONSTRAINT_NAME = '{name}_TmpController'
 
 
 # SUFFIXE
@@ -30,6 +31,7 @@ BUTTON_CREATE_CONTROLLER = "buttonCreateController"
 CHECKBOX_BAKE_ALL_FRAMES_NEW_CONTROLLER = "checkboxBakeOnAllFramesNewController"
 RADIO_GROUP_CONTROLLER_MODE = "radioGroupControllerMode"
 FRAME_SELECTED_CONTROLLER = "frameSelectedController"
+CHECKBOX_DRIVER_ENABLE = "checkboxDriverEnable"
 FRAME_CONTROLLER_DETAILS = "frameControllerDetails"
 FRAME_GENERAL_OPTIONS = "frameGeneralOptions"
 SHAPE_MENU_CREATION_NAME = "optionShapeMenu"
