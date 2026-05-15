@@ -4,8 +4,6 @@ import cr_tempController.constants as constants
 import logging
 import cr_tempController.utils.logging as utils_logging
 
-import re
-
 LOGGER = logging.getLogger(__name__)
 
 
@@ -160,28 +158,19 @@ def reconnect_constraints(child_controller: str) -> None:
         parent_group,
         source_controller,
         edit=True,
-        remove=True,
-        name=constants.PARENT_CONSTRAINT_NAME.replace(
-            "{name}", source_controller)
+        remove=True
     )
 
 
 def find_blend_parent_attr(base_controller_name: str, target: str) -> str | None:
-    """                                                                   
-    Find the blendParent attribute on a constrained object that corresponds to a specific constraint target.
+    """
+    Return the full attr path (node.attr) that controls whether the parentConstraint
+    for *target* drives *base_controller_name*.
 
-    Maya does not expose blendParent via DG connections, so the index is inferred
-    from the trailing number on the parentConstraint node name (e.g.
-    ``_parentConstraint2`` → ``blendParent2``).
-
-    :param base_controller_name: The constrained object to inspect.
-    :type base_controller_name: str
-
-    :param target: The constraint target name used to identify the right parentConstraint node.
-    :type target: str
-
-    :return: The blendParent attribute name (e.g. ``blendParent1``), or **None** if not found.
-    :rtype: str | None
+    Tries two strategies in order:
+    1. DG traversal: constraint -> pairBlend.weight -> blendParent attr on the transform.
+       This exists only when the object also has animation keys.
+    2. Constraint weight alias (W0) on the constraint node itself — always present.
     """
     constraint_nodes = cmds.listRelatives(
         base_controller_name, type="parentConstraint"
@@ -189,9 +178,22 @@ def find_blend_parent_attr(base_controller_name: str, target: str) -> str | None
 
     for node in constraint_nodes:
         targets = cmds.parentConstraint(node, q=True, targetList=True) or []
-        if target in targets:
-            match = re.search(r'(\d+)$', node)
-            index = match.group(1) if match else "1"
-            return f"blendParent{index}"
+        if target not in targets:
+            continue
+
+        # Strategy 1: follow pairBlend connection (exists only when keys are present)
+        pair_blends = cmds.listConnections(node, type="pairBlend", destination=True) or []
+        for pb in pair_blends:
+            weight_conns = cmds.listConnections(
+                f"{pb}.weight", source=True, plugs=True) or []
+            for conn in weight_conns:
+                node_name, attr = conn.split(".", 1)
+                if node_name == base_controller_name:
+                    return f"{base_controller_name}.{attr}"
+
+        # Strategy 2: constraint weight — always available, even without keys
+        weight_aliases = cmds.parentConstraint(node, q=True, weightAliasList=True) or []
+        if weight_aliases:
+            return f"{node}.{weight_aliases[0]}"
 
     return None
