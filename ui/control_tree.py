@@ -576,11 +576,10 @@ class ControlTreeMayaUI:
             if not target:
                 return
 
-            blend_attr = utils_nodes.find_blend_parent_attr(base_controller_name=base_controller_name,
-                                                            target=target)
-            if blend_attr:
-                cmds.setAttr(f"{base_controller_name}.{blend_attr}",
-                             1 if value else 0)
+            attr_path = utils_nodes.find_blend_parent_attr(base_controller_name=base_controller_name,
+                                                           target=target)
+            if attr_path:
+                cmds.setAttr(attr_path, 1 if value else 0)
 
     def get_base_controller_constraint_state(self, controller_name: str) -> int:
         base_controller_name, target = self.__find_constraint_target(
@@ -588,12 +587,12 @@ class ControlTreeMayaUI:
         if target is None:
             return 0
 
-        blend_attr = utils_nodes.find_blend_parent_attr(
+        attr_path = utils_nodes.find_blend_parent_attr(
             base_controller_name, target)
-        if blend_attr is None:
+        if attr_path is None:
             return 0
 
-        return int(cmds.getAttr(f"{base_controller_name}.{blend_attr}"))
+        return int(cmds.getAttr(attr_path))
 
     def __find_constraint_target(self, controller_name: str) -> tuple[str, str | None]:
         base_controller_name = utils_nodes.get_base_controller(controller_name)
